@@ -12,9 +12,10 @@ import { conCodigoPostal } from '../errores'
  * al trámite, dice que alguien está en el paro. El cuerpo de un POST no se
  * registra.
  *
- * Lo que se pierde es que la consulta no se pueda compartir por enlace ni
- * guardar en favoritos. Aquí no hace falta: el hero recuerda el último código
- * postal en el propio navegador.
+ * Lo que parecía perderse —que la consulta no se pueda compartir ni guardar en
+ * favoritos— no se pierde: el hero escribe la búsqueda en el **fragmento** de
+ * la dirección (`#cp=08401`), que sí se comparte y sí se guarda, y que es la
+ * única parte de una URL que no viaja al servidor y por tanto no se registra.
  */
 export function POST(peticion: Request): Promise<Response> {
   return conCodigoPostal(peticion, (codigoPostal) => appDeProduccion().geocodificador.localizar(codigoPostal))

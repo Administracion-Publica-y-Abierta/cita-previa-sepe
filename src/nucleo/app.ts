@@ -3,6 +3,10 @@ import { crearBuscador, type Buscador } from '@/sepe/buscador'
 import { crearCatalogo, type Catalogo } from '@/sepe/catalogo'
 import { crearClienteSepe } from '@/sepe/cliente'
 import { crearFrenoEnMemoria } from '@/sepe/freno'
+import {
+  crearBuscadorDelPrimerTramite,
+  type BuscadorDelPrimerTramite,
+} from '@/sepe/primer-tramite'
 import type { Dependencias } from './dependencias'
 
 /**
@@ -22,6 +26,8 @@ export interface App {
   catalogo: Catalogo
   /** Código postal y trámite → oficinas de la zona con su primer hueco. */
   buscador: Buscador
+  /** Código postal a secas → las oficinas del primer trámite. Es lo que pide el hero. */
+  primerTramite: BuscadorDelPrimerTramite
 }
 
 export function crearApp(dependencias: Dependencias): App {
@@ -33,13 +39,19 @@ export function crearApp(dependencias: Dependencias): App {
   // invocaciones, y dos visitantes a la vez son dos peticiones a la vez.
   const clienteSepe = crearClienteSepe(dependencias.fetch, crearFrenoEnMemoria(dependencias.reloj))
 
+  // El catálogo comparte cliente con el buscador, y por tanto freno: el ritmo
+  // es del proceso entero, y las diez peticiones de un catálogo no pueden
+  // colarse por delante de las de una búsqueda que ya iba.
+  const catalogo = crearCatalogo({ clienteSepe, reloj: dependencias.reloj })
+  const buscador = crearBuscador({ clienteSepe, geocodificador, reloj: dependencias.reloj })
+
   return {
     dependencias,
     geocodificador,
-    // El catálogo comparte cliente con el buscador, y por tanto freno: el
-    // ritmo es del proceso entero, y las diez peticiones de un catálogo no
-    // pueden colarse por delante de las de una búsqueda que ya iba.
-    catalogo: crearCatalogo({ clienteSepe, reloj: dependencias.reloj }),
-    buscador: crearBuscador({ clienteSepe, geocodificador, reloj: dependencias.reloj }),
+    catalogo,
+    buscador,
+    // No es una pieza más: es la composición de las dos de arriba, y se arma
+    // aquí para que no haya un Route Handler orquestando por su cuenta.
+    primerTramite: crearBuscadorDelPrimerTramite({ catalogo, buscador }),
   }
 }
