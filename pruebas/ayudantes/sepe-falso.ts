@@ -132,3 +132,49 @@ ${opciones}
 	</select>`,
   }
 }
+
+/** Una oficina como la manda el SEPE. Solo lo que se lee; el resto no hace falta. */
+export interface OficinaAMano {
+  idOficina: number
+  oficina?: string
+  primerHuecoDisponible?: string
+  latitud?: number
+  longitud?: number
+}
+
+/**
+ * El mapa de un trámite concreto, puesto a mano.
+ *
+ * Las capturas solo traen el mapa de dos trámites, uno por cada código postal,
+ * así que una pasada de varios trámites no se puede montar con lo grabado. El
+ * `cuando` es lo que hace que cada trámite conteste lo suyo: sin él, esta
+ * respuesta le contestaría también a los trámites que sí están grabados.
+ */
+export function mapaDelSepe(
+  idTramite: number,
+  oficinas: OficinaAMano[],
+  canal: { idTipoAtencion: number; tipoAtencion: string } = { idTipoAtencion: 1, tipoAtencion: 'Presencial' },
+): RespuestaAMano {
+  return {
+    endpoint: 'cargaTiposAtencionMapa',
+    cuando: { idGrupoServicio: String(idTramite) },
+    tipoContenido: 'application/json; charset=UTF-8',
+    cuerpo: JSON.stringify({
+      listTipoAtencion: [canal],
+      listaTramites: [],
+      listaOficina: oficinas.map((oficina) => ({
+        idOficina: oficina.idOficina,
+        oficina: oficina.oficina ?? `OFICINA ${oficina.idOficina}`,
+        direccion: 'CALLE DE PRUEBA, 1',
+        telefono: '0901010210',
+        horarioAtencion: '08:30 a 14:00',
+        latitud: oficina.latitud ?? 41.594542,
+        longitud: oficina.longitud ?? 2.289705,
+        idServicio: idTramite,
+        servicio: 'Trámite de prueba',
+        oficinaVirtual: false,
+        primerHuecoDisponible: oficina.primerHuecoDisponible ?? '',
+      })),
+    }),
+  }
+}

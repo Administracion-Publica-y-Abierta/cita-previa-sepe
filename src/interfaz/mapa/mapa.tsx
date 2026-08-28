@@ -53,6 +53,7 @@ export function Mapa({
   alSenalar,
   alElegir,
   pantallaCompleta,
+  busqueda,
 }: {
   oficinas: Oficina[]
   /** Dónde marcar el código postal buscado, o `null` si no se puede situar. */
@@ -62,6 +63,8 @@ export function Mapa({
   alElegir: (id: number | null) => void
   /** Cambia cuando el mapa pasa a ocupar la pantalla, para que se remida. */
   pantallaCompleta: boolean
+  /** Cambia con cada búsqueda nueva. Es lo que decide cuándo se reencuadra. */
+  busqueda: number
 }) {
   const contenedor = useRef<HTMLDivElement>(null)
   const mapa = useRef<MapaDeMapLibre | null>(null)
@@ -174,9 +177,11 @@ export function Mapa({
     }
   }, [])
 
-  // Las oficinas y el código postal, cada vez que cambia la búsqueda. El
-  // encuadre se rehace con ellos: quien busca no tiene que ir a buscar sus
-  // resultados por el mapa.
+  /** La última búsqueda que se ha encuadrado, para no encuadrar dos veces la misma. */
+  const encuadrada = useRef<number | null>(null)
+
+  // Las oficinas y el código postal, cada vez que entra un trámite. Los puntos
+  // se rehacen siempre —para eso llegan— pero el encuadre no.
   useEffect(() => {
     if (!conCapas || !mapa.current) return
 
@@ -184,9 +189,19 @@ export function Mapa({
     fuenteDe(mapa.current, FUENTE_OFICINAS)?.setData(comoGeoJson(puntos))
     fuenteDe(mapa.current, FUENTE_CODIGO_POSTAL)?.setData(fuenteDelCodigoPostal(marcaDelCodigoPostal).data)
 
+    // El encuadre se rehace **una vez por búsqueda**. Quien busca no tiene que
+    // ir a buscar sus resultados por el mapa, pero los trámites que entran
+    // detrás son oficinas de la misma zona: mover la vista con cada uno le
+    // quitaría el mapa de las manos a quien lo está mirando, que es justo lo
+    // que tiene que poder hacer mientras el resto llega.
+    if (encuadrada.current === busqueda) return
+
     const encuadre = encuadreDe(puntos, marcaDelCodigoPostal)
-    if (encuadre) mapa.current.fitBounds(encuadre, ENCUADRE)
-  }, [oficinas, marcaDelCodigoPostal, conCapas])
+    if (!encuadre) return
+
+    encuadrada.current = busqueda
+    mapa.current.fitBounds(encuadre, ENCUADRE)
+  }, [oficinas, marcaDelCodigoPostal, conCapas, busqueda])
 
   // La otra mitad de la sincronía con la lista: lo que se señala allí se
   // resalta aquí. De aquí a la lista va por `alSenalar`.

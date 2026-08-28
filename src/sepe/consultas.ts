@@ -1,6 +1,7 @@
 import type { Almacen } from '@/almacen/almacen'
 import type { AnchoDeClave, Configuracion } from '@/nucleo/configuracion'
 import type { Reloj } from '@/nucleo/reloj'
+import type { Canal } from './mapa'
 import type { OficinaDelSepe } from './oficinas'
 
 /**
@@ -28,6 +29,16 @@ export interface Consultado {
   estado: EstadoDeLaConsulta
   /** Instante real de la consulta al SEPE, para poder decir de cuándo es el dato. */
   consultadoEn: number
+  /**
+   * El canal por el que se atienden estas oficinas. Es del SEPE, así que se
+   * guarda con ellas: la lista guardada no se puede leer sin saber de qué
+   * canal es.
+   *
+   * No entra en la clave: el canal no lo elige quien pregunta —se coge el que
+   * el SEPE lista primero—, así que es parte de la respuesta y no de la
+   * pregunta. El día que se pueda elegir, entra.
+   */
+  canal: Canal | null
   oficinas: OficinaDelSepe[]
 }
 
@@ -159,7 +170,7 @@ export function crearCacheDeConsultas(piezas: {
       if (reloj.ahora() >= limite) break
     }
 
-    return respaldo({ estado: 'vuelve-en-un-momento', consultadoEn: reloj.ahora(), oficinas: [] }, clave)
+    return respaldo({ estado: 'vuelve-en-un-momento', consultadoEn: reloj.ahora(), canal: null, oficinas: [] }, clave)
   }
 
   return {

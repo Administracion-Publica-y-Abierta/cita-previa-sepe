@@ -13,9 +13,26 @@ import type { OficinaDelSepe } from './oficinas'
 /** Nodo raíz del árbol de trámites. El SEPE lo manda en todas las llamadas del mapa. */
 const JERARQUIA = 5
 
+/**
+ * Por dónde se atiende un trámite: presencial, por teléfono. Es del SEPE, y
+ * las oficinas que contesta son **las de ese canal**: sin decir cuál, una lista
+ * de oficinas no se puede leer del todo.
+ */
+export interface Canal {
+  id: number
+  nombre: string
+}
+
 interface RespuestaDelMapa {
-  listTipoAtencion?: { idTipoAtencion: number }[]
+  listTipoAtencion?: { idTipoAtencion: number; tipoAtencion?: string }[]
   listaOficina?: OficinaDelSepe[]
+}
+
+/** Las oficinas de un trámite y el canal por el que se atienden. */
+export interface OficinasDelMapa {
+  /** `null` cuando el SEPE no ha listado ninguno, que es cuando tampoco hay oficinas. */
+  canal: Canal | null
+  oficinas: OficinaDelSepe[]
 }
 
 export interface PeticionDelMapa {
@@ -36,7 +53,7 @@ export interface PeticionDelMapa {
 export async function oficinasDelTramite(
   sesion: SesionSepe,
   peticion: PeticionDelMapa,
-): Promise<OficinaDelSepe[]> {
+): Promise<OficinasDelMapa> {
   const comunes = parametrosComunes(peticion)
 
   // `codigoEntidad` va con valor aquí y vacío en la otra llamada. No es un
@@ -46,24 +63,39 @@ export async function oficinasDelTramite(
     ...comunes,
   })
 
-  if (mapa.listaOficina?.length) return mapa.listaOficina
-
-  // Algunos trámites sí contestan con la lista vacía y sus oficinas solo salen
-  // por la segunda puerta. Es el único caso en que se paga la segunda llamada.
   // El canal es el primero que lista el SEPE, que es el que su propia web trae
   // elegido. Preferir aquí el presencial sería decidir por quien pregunta, y
   // esa decisión es del filtro de trámites, no de la llamada.
-  const idTipoAtencion = mapa.listTipoAtencion?.[0]?.idTipoAtencion
-  if (idTipoAtencion === undefined) return []
+  const canal = canalDe(mapa)
+
+  if (mapa.listaOficina?.length) return { canal, oficinas: mapa.listaOficina }
+
+  // Algunos trámites sí contestan con la lista vacía y sus oficinas solo salen
+  // por la segunda puerta. Es el único caso en que se paga la segunda llamada.
+  if (!canal) return { canal: null, oficinas: [] }
 
   const oficinas = await sesion.json<RespuestaDelMapa>('/cita/cargaOficinasMapa', {
     codigoEntidad: '',
-    idTipoAtencion,
+    idTipoAtencion: canal.id,
     idTipoAtencionTR: 0,
     ...comunes,
   })
 
-  return oficinas.listaOficina ?? []
+  return { canal, oficinas: oficinas.listaOficina ?? [] }
+}
+
+/**
+ * El canal de la respuesta, con el nombre que le da el SEPE.
+ *
+ * Se queda con el nombre vacío si el SEPE no lo manda, en vez de descartar el
+ * canal entero: el identificador es lo que necesita la segunda llamada, y sin
+ * él no habría oficinas que enseñar. Quien lo pinte decide qué hacer con un
+ * nombre en blanco.
+ */
+function canalDe(mapa: RespuestaDelMapa): Canal | null {
+  const primero = mapa.listTipoAtencion?.[0]
+  if (!primero) return null
+  return { id: primero.idTipoAtencion, nombre: primero.tipoAtencion?.trim() ?? '' }
 }
 
 function parametrosComunes({ idTramite, codigoPostal, origen }: PeticionDelMapa) {

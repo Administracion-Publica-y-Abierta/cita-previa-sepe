@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { buscar, listaDeOficinas, montarPortada } from './la-portada'
 import { pantalla } from './pantalla'
-import { apiQueContesta, oficina, respuesta } from './sepe-en-el-navegador'
+import { apiQueContesta, oficina, pasadaDeUnTramite } from './sepe-en-el-navegador'
 
 /**
  * El mapa, probado desde donde se puede.
@@ -23,7 +23,7 @@ async function columnaDeLaLista(): Promise<HTMLElement> {
   return (await listaDeOficinas()).parentElement as HTMLElement
 }
 
-const DOS_OFICINAS = respuesta({
+const DOS_OFICINAS = pasadaDeUnTramite({
   oficinas: [
     oficina({ id: 1, nombre: 'GRANOLLERS-PERIFERIA - SEPE', primerHueco: '2026-08-17T09:00:00' }),
     oficina({ id: 2, nombre: 'MOLLET DEL VALLES - SEPE', primerHueco: null }),
