@@ -21,7 +21,25 @@ import type { EventoDeLaPasada } from '@/sepe/pasada'
  */
 
 /** El instante de la segunda captura, el mismo con el que arrancan los tests del servidor. */
-const CONSULTADO_EN = Date.parse('2026-08-14T13:37:10+02:00')
+export const CONSULTADO_EN = Date.parse('2026-08-14T13:37:10+02:00')
+
+/**
+ * Un primer hueco a tantos días de la búsqueda, a esa hora de pared.
+ *
+ * Se calcula desde `CONSULTADO_EN` y no se escribe a mano porque los filtros de
+ * fecha cuentan los días desde ahí: una fecha fija haría que «esta semana»
+ * pasara o fallara según la zona horaria de quien corra los tests.
+ */
+export function hueco(dias: number, hora = 9): string {
+  const fecha = new Date(CONSULTADO_EN)
+  fecha.setDate(fecha.getDate() + dias)
+  fecha.setHours(hora, 0, 0, 0)
+  const dosDigitos = (numero: number) => String(numero).padStart(2, '0')
+  return [
+    `${fecha.getFullYear()}-${dosDigitos(fecha.getMonth() + 1)}-${dosDigitos(fecha.getDate())}`,
+    `${dosDigitos(hora)}:00:00`,
+  ].join('T')
+}
 
 const GRANOLLERS: Localizacion = {
   lat: 41.6083,
@@ -69,9 +87,19 @@ export function oficina(parcial: Partial<Oficina> = {}): Oficina {
   }
 }
 
-/** Qué trámites hay en la zona y desde dónde se miden los kilómetros. */
-export function cola(tramites: TramiteEnCola[], estado: EstadoDeLaCola = 'ok'): EventoDeLaPasada {
-  return { tipo: 'cola', estado, consultadoEn: CONSULTADO_EN, localizacion: GRANOLLERS, tramites }
+/**
+ * Qué trámites hay en la zona y desde dónde se miden los kilómetros.
+ *
+ * El `consultadoEn` se puede mover porque el de la cola **no** es el de las
+ * horas: la cola se guarda un día entero, así que un test tiene que poder
+ * ponerla rancia y comprobar que los filtros de fecha no le hacen caso.
+ */
+export function cola(
+  tramites: TramiteEnCola[],
+  estado: EstadoDeLaCola = 'ok',
+  consultadoEn: number = CONSULTADO_EN,
+): EventoDeLaPasada {
+  return { tipo: 'cola', estado, consultadoEn, localizacion: GRANOLLERS, tramites }
 }
 
 /** Un trámite resuelto, con lo que haya salido de él. */

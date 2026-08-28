@@ -45,3 +45,18 @@ export function tituloDeLosResultados(): HTMLElement {
 export function campoDelCodigoPostal(): HTMLInputElement {
   return screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement
 }
+
+/**
+ * La línea que resume la búsqueda, pedida por su nombre.
+ *
+ * Por su nombre y no por su papel a secas porque en esta pantalla hay dos
+ * regiones vivas: esta y el contador de lo que dejan los filtros.
+ */
+export function elResumen(): HTMLElement {
+  return screen.getByRole('status', { name: /resumen de la búsqueda/i })
+}
+
+/** El contador de lo que dejan los filtros, la otra región viva de la pantalla. */
+export function elContador(): HTMLElement {
+  return screen.getByRole('status', { name: /oficinas que dejan los filtros/i })
+}

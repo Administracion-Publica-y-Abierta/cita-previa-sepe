@@ -1,9 +1,11 @@
 import { avisoDe, soloDigitos } from './codigo-postal'
+import { deLaDireccion, enLaDireccion, SIN_FILTROS, type Filtros } from './filtros'
 
 /**
  * Lo poco que esta web recuerda, y todo ello en el navegador de quien
  * pregunta: el último código postal usado, y la búsqueda que está mirando —su
- * código postal y los trámites que haya marcado—.
+ * código postal, los trámites que haya marcado y cómo tenga filtrada la
+ * lista—.
  *
  * Nada de esto toca un servidor nuestro. Es lo que permite que la portada diga
  * que no guardamos ningún dato sin tener que matizarlo con letra pequeña.
@@ -46,23 +48,37 @@ export function codigoPostalDeLaDireccion(): string {
 }
 
 /**
- * Los trámites marcados que trae el enlace, para poder compartir una búsqueda
- * con sus trámites ya elegidos.
+ * Lo que trae el enlace además del código postal: los trámites marcados y los
+ * filtros de la lista. Así se comparte una búsqueda tal como se está mirando.
  *
- * Se recuerda lo leído mientras el fragmento no cambie por lo mismo que
- * `NINGUNO`: esto es la instantánea de un `useSyncExternalStore`, y una lista
- * nueva en cada lectura sería un repintado infinito.
+ * Se lee una vez por fragmento y se recuerda, por lo mismo que `NINGUNO`: esto
+ * son las instantáneas de dos `useSyncExternalStore`, y un valor nuevo en cada
+ * lectura sería un repintado detrás de otro sin parar. Y se leen las dos de
+ * una pasada porque salen del mismo sitio: dos memorias del mismo fragmento
+ * serían dos formas de que una se quedara vieja.
  */
 let ultimoFragmento: string | null = null
 let ultimosTramites: number[] = NINGUNO
+let ultimosFiltros: Filtros = SIN_FILTROS
+
+function loQueTraeElEnlace(): void {
+  const fragmento = window.location.hash
+  if (fragmento === ultimoFragmento) return
+
+  ultimoFragmento = fragmento
+  const parametros = fragmento.replace(/^#/, '')
+  ultimosTramites = losTramitesDe(parametros)
+  ultimosFiltros = deLaDireccion(parametros)
+}
 
 export function tramitesDeLaDireccion(): number[] {
-  const fragmento = window.location.hash
-  if (fragmento !== ultimoFragmento) {
-    ultimoFragmento = fragmento
-    ultimosTramites = losTramitesDe(fragmento)
-  }
+  loQueTraeElEnlace()
   return ultimosTramites
+}
+
+export function filtrosDeLaDireccion(): Filtros {
+  loQueTraeElEnlace()
+  return ultimosFiltros
 }
 
 /**
@@ -71,8 +87,8 @@ export function tramitesDeLaDireccion(): number[] {
  * además existan en la zona lo decide quien mira la cola, que es el único que
  * lo sabe.
  */
-function losTramitesDe(fragmento: string): number[] {
-  const marcados = new URLSearchParams(fragmento.replace(/^#/, '')).get(TRAMITES)
+function losTramitesDe(parametros: string): number[] {
+  const marcados = new URLSearchParams(parametros).get(TRAMITES)
   if (!marcados) return NINGUNO
 
   const ids = marcados
@@ -88,13 +104,25 @@ function losTramitesDe(fragmento: string): number[] {
  *
  * `replaceState` y no `pushState` porque cada consulta no es un sitio nuevo
  * donde se ha estado: con `pushState`, volver atrás desde la lista recorrería
- * una a una todas las búsquedas de la sesión en vez de salir de la web.
+ * una a una todas las búsquedas de la sesión en vez de salir de la web. Y
+ * desde que hay filtros vale doble: mover el control de distancia dejaría
+ * noventa y nueve paradas en el historial.
  */
-export function ponerEnLaDireccion(codigoPostal: string, tramites: number[]): void {
-  // Sin marcar nada se enseñan todos, así que el parámetro sobra: un enlace
-  // con la lista entera dentro diría lo mismo y sería ilegible.
+export function ponerEnLaDireccion(
+  codigoPostal: string,
+  tramites: number[],
+  filtros: Filtros,
+): void {
+  // Lo que no se ha tocado no se escribe. Sin marcar nada se enseñan todos, y
+  // sin filtros no se filtra: un enlace que arrastrara los valores por defecto
+  // diría lo mismo y sería ilegible.
   const marcados = tramites.length > 0 ? `&${TRAMITES}=${tramites.join(',')}` : ''
-  window.history.replaceState(null, '', `#${PARAMETRO}=${codigoPostal}${marcados}`)
+  const filtrado = enLaDireccion(filtros)
+  window.history.replaceState(
+    null,
+    '',
+    `#${PARAMETRO}=${codigoPostal}${marcados}${filtrado ? `&${filtrado}` : ''}`,
+  )
 }
 
 /**

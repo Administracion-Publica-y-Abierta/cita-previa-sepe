@@ -11,6 +11,8 @@ import {
 } from 'react'
 import { avisoDe, DIGITOS, soloDigitos } from './codigo-postal'
 import { FiltroDeTramites } from './filtro-de-tramites'
+import { aplicando, SIN_FILTROS, type Filtros } from './filtros'
+import { FiltrosDeLaLista } from './filtros-de-la-lista'
 import {
   acabada,
   empezando,
@@ -22,6 +24,7 @@ import {
 } from './lo-que-va-llegando'
 import {
   codigoPostalDeLaDireccion,
+  filtrosDeLaDireccion,
   NINGUNO,
   ponerEnLaDireccion,
   recordarCodigoPostal,
@@ -50,6 +53,11 @@ import {
  * Y la búsqueda no es una espera: los trámites de la zona se consultan en cola
  * y **entran según llegan**. La lista y el mapa aparecen con el primero, y
  * mientras el resto viene se dice cuál se está consultando y cuánto falta.
+ *
+ * Y una vez hay lista, se estrecha de dos maneras que no se parecen en nada:
+ * por trámite —que puede costar una consulta al SEPE, porque puede haber algo
+ * que todavía no se sepa— y por distancia, franja y fecha, que no cuesta
+ * ninguna: eso ya está todo aquí y se resuelve con funciones puras.
  *
  * Marcar un trámite tampoco relanza nada. Si ya se sabe de él, solo cambia lo
  * que se mira; si no, se mete en la cola y sus oficinas se suman a las que hay
@@ -90,6 +98,9 @@ const EN_EL_SERVIDOR = () => ''
 /** Lo mismo para los trámites marcados: ninguno, y siempre el mismo array. */
 const NINGUNO_EN_EL_SERVIDOR = () => NINGUNO
 
+/** Y de los filtros de la lista, tampoco: sin filtros no se filtra. */
+const SIN_FILTROS_EN_EL_SERVIDOR = () => SIN_FILTROS
+
 export function Hero() {
   // La búsqueda que trae el enlace, y el último código postal usado. Se leen
   // en el primer pintado del navegador y no en un efecto: el campo tiene que
@@ -101,6 +112,13 @@ export function Hero() {
     tramitesDeLaDireccion,
     NINGUNO_EN_EL_SERVIDOR,
   )
+  // Y sus filtros, por lo mismo: quien abre una búsqueda compartida tiene que
+  // ver la lista **ya filtrada**, y no la entera encogiéndose después.
+  const filtrosDelEnlace = useSyncExternalStore(
+    SIN_CAMBIOS,
+    filtrosDeLaDireccion,
+    SIN_FILTROS_EN_EL_SERVIDOR,
+  )
 
   /** Lo tecleado, o `null` mientras no se haya tecleado nada. */
   const [escrito, setEscrito] = useState<string | null>(null)
@@ -109,6 +127,8 @@ export function Hero() {
   const [llegando, setLlegando] = useState<LoQueVaLlegando | null>(null)
   /** Lo marcado a mano, o `null` mientras no se haya tocado ninguna casilla. */
   const [marcado, setMarcado] = useState<number[] | null>(null)
+  /** Los filtros de la lista tocados a mano, o `null` mientras valgan los del enlace. */
+  const [tocados, setTocados] = useState<Filtros | null>(null)
 
   // El `??` de fuera y no `||`: borrar el campo del todo es teclear, y
   // entonces tiene que quedarse vacío en vez de volver a proponer lo de antes.
@@ -118,6 +138,8 @@ export function Hero() {
 
   /** Los trámites marcados. Ninguno quiere decir que se miran todos. */
   const elegidos = marcado ?? marcadosEnElEnlace
+
+  const filtros = tocados ?? filtrosDelEnlace
 
   // Si el enlace traía búsqueda y todavía no ha llegado nada, es que se está
   // buscando: la consulta sale en el mismo pintado, desde el efecto de abajo.
@@ -272,7 +294,11 @@ export function Hero() {
     // sus identificadores dejaría una búsqueda nueva filtrada por algo que no
     // existe aquí.
     setMarcado(NINGUNO)
-    ponerEnLaDireccion(codigoPostal, NINGUNO)
+    // Los filtros de la lista sí se conservan: no son de esta zona ni de estos
+    // trámites —«a menos de cinco kilómetros» quiere decir lo mismo en
+    // cualquier código postal—, así que tirarlos sería deshacer algo que nadie
+    // ha pedido deshacer.
+    ponerEnLaDireccion(codigoPostal, NINGUNO, filtros)
 
     setAviso(null)
     buscarOficinas(codigoPostal, NINGUNO)
@@ -288,7 +314,7 @@ export function Hero() {
    */
   function cambiarLoMarcado(nuevos: number[]): void {
     setMarcado(nuevos)
-    ponerEnLaDireccion(zona.current, nuevos)
+    ponerEnLaDireccion(zona.current, nuevos, filtros)
 
     // Lo que se desmarca antes de que le llegue el turno se cae de la cola: ya
     // no lo mira nadie, y una petición al SEPE que nadie va a leer es una
@@ -326,6 +352,29 @@ export function Hero() {
   // teclea en el campo es hacerle rehacer sus puntos por nada.
   const oficinas = useMemo(() => oficinasDe(loQueSeMira), [loQueSeMira])
   const hayTitulo = seCuentaAlgo(loQueSeMira)
+
+  // Desde cuándo cuentan «hoy», «esta semana» y «este mes»: el instante con el
+  // que el SEPE contestó estas horas, que lo trae el trámite. Llega con el
+  // primero, o sea antes que cualquier oficina: mientras es `null` no hay nada
+  // que filtrar.
+  const referencia = loQueSeMira.consultadoEn
+
+  // Filtrar y ordenar es una función pura sobre lo que ya ha llegado: ni una
+  // petición. Aquí está la diferencia con el filtro de trámites, que sí puede
+  // costar una consulta porque puede pedir algo que todavía no se sabe.
+  const visibles = useMemo(
+    () => (referencia === null ? oficinas : aplicando(oficinas, filtros, referencia)),
+    [oficinas, filtros, referencia],
+  )
+
+  // Los filtros se escriben en la dirección según se tocan, para que el enlace
+  // que hay en la barra sea siempre el de lo que se está viendo. La zona y no
+  // el campo, por lo mismo que al marcar un trámite: se puede teclear otro
+  // código postal sin pulsar el botón.
+  function cambiarFiltros(nuevos: Filtros): void {
+    setTocados(nuevos)
+    if (zona.current) ponerEnLaDireccion(zona.current, elegidos, nuevos)
+  }
 
   return (
     <>
@@ -406,8 +455,12 @@ export function Hero() {
           Y está siempre en el árbol, aunque esté vacía: una región viva que
           nace ya con texto dentro es la que algunos lectores no llegan a
           anunciar.
+
+          Lleva nombre porque desde los filtros de la lista hay una segunda
+          región viva —el contador de lo que queda—, y dos regiones sin nombre
+          son dos avisos que no se sabe de qué son.
         */}
-        <p className="text-lg" role="status">
+        <p aria-label="Resumen de la búsqueda" className="text-lg" role="status">
           {resumenDe(loQueSeMira, oficinas)}
         </p>
 
@@ -422,10 +475,31 @@ export function Hero() {
                 centro de {loQueSeMira.localizacion.provincia} y pueden fallar por decenas de kilómetros.
               </p>
             )}
+
+            {/* El panel se pinta con **todas** las que hay y no con las que
+                quedan: el contador cuenta sobre el total, y cuando los filtros
+                dejan la lista a cero es justo cuando más falta hace que siga
+                estando a la vista. */}
+            {referencia !== null && (
+              <FiltrosDeLaLista
+                alCambiar={cambiarFiltros}
+                cuantasSeVen={visibles.length}
+                filtros={filtros}
+                oficinas={oficinas}
+                referencia={referencia}
+              />
+            )}
+
+            {/* La lista y el mapa enseñan lo mismo: los dos son la misma
+                respuesta mirada de dos maneras, y un mapa con puntos que la
+                lista no tiene dejaría de serlo. Se quedan puestos aunque los
+                filtros no dejen ninguna: un mapa que desaparece al mover un
+                control se lleva la vista de donde se estaba mirando, y lo que
+                pasa ya lo dice el panel. */}
             <Resultados
               busqueda={loQueSeMira.busqueda}
               localizacion={loQueSeMira.localizacion}
-              oficinas={oficinas}
+              oficinas={visibles}
             />
           </>
         )}
