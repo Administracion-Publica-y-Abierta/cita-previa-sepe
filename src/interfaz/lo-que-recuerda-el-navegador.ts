@@ -1,17 +1,22 @@
 import { avisoDe, soloDigitos } from './codigo-postal'
 import { deLaDireccion, enLaDireccion, SIN_FILTROS, type Filtros } from './filtros'
+import type { LoQueVaLlegando, TramiteResuelto } from './lo-que-va-llegando'
 
 /**
  * Lo poco que esta web recuerda, y todo ello en el navegador de quien
- * pregunta: el último código postal usado, y la búsqueda que está mirando —su
+ * pregunta: el último código postal usado, la búsqueda que está mirando —su
  * código postal, los trámites que haya marcado y cómo tenga filtrada la
- * lista—.
+ * lista— y el último resultado consultado, para poder enseñarlo cuando no hay
+ * cobertura.
  *
  * Nada de esto toca un servidor nuestro. Es lo que permite que la portada diga
  * que no guardamos ningún dato sin tener que matizarlo con letra pequeña.
  */
 
 const CLAVE = 'ultimo-codigo-postal'
+
+/** Lo último que contestó el SEPE, tal como se estaba mirando. */
+const RESULTADO = 'ultimo-resultado'
 
 /** El nombre del parámetro dentro del fragmento: `#cp=08401`. */
 const PARAMETRO = 'cp'
@@ -146,4 +151,102 @@ export function recordarCodigoPostal(codigoPostal: string): void {
   } catch {
     // Ver arriba: recordarlo es una comodidad.
   }
+}
+
+/**
+ * El último resultado consultado: la zona, lo que hubiera marcado y todo lo que
+ * llegó.
+ *
+ * Se guarda entero y no un resumen porque lo que hay que poder enseñar sin red
+ * es exactamente la pantalla que había: la lista, el mapa, y de cuándo es.
+ */
+export interface LoUltimoConsultado {
+  codigoPostal: string
+  elegidos: number[]
+  estado: LoQueVaLlegando
+}
+
+/**
+ * Lo guardado se lee una vez y se recuerda, por lo mismo que lo que trae el
+ * enlace: esto es la instantánea de un `useSyncExternalStore`, y un objeto
+ * nuevo en cada lectura sería un repintado detrás de otro sin parar.
+ */
+let yaSeLeyo = false
+let loLeido: LoUltimoConsultado | null = null
+
+export function recordarElResultado(ultimo: LoUltimoConsultado): void {
+  // También aquí, y con el objeto que se acaba de guardar: si no, la siguiente
+  // lectura devolvería lo de antes o algo recién construido.
+  yaSeLeyo = true
+  loLeido = ultimo
+
+  try {
+    window.localStorage.setItem(RESULTADO, JSON.stringify(ultimo))
+  } catch {
+    // Como el código postal: guardarlo es una comodidad y que el navegador no
+    // deje —modo privado, cuota llena— no puede llevarse por delante nada.
+  }
+}
+
+export function loUltimoConsultado(): LoUltimoConsultado | null {
+  if (yaSeLeyo) return loLeido
+  yaSeLeyo = true
+
+  try {
+    const guardado = window.localStorage.getItem(RESULTADO)
+    if (guardado === null) return loLeido
+
+    const leido: unknown = JSON.parse(guardado)
+    if (esLoUltimoConsultado(leido)) loLeido = leido
+  } catch {
+    // Un almacenamiento bloqueado o algo escrito a mano que no cuadra: no hay
+    // nada guardado, que es un caso normal y no una avería.
+  }
+
+  return loLeido
+}
+
+/**
+ * Para los tests, que en el mismo proceso abren la aplicación muchas veces: sin
+ * esto, el primero que leyera dejaría su respuesta puesta para todos los demás.
+ */
+export function olvidarLoLeido(): void {
+  yaSeLeyo = false
+  loLeido = null
+}
+
+/**
+ * Lo guardado se comprueba como se comprueba un enlace: esto lo escribe
+ * cualquiera desde las herramientas del navegador, y sobre todo lo escribió una
+ * versión anterior de esta misma web, que es el caso que de verdad va a pasar.
+ * Un formato viejo que no cuadre tiene que salir por aquí como «no hay nada
+ * guardado», no reventar la pantalla de quien lo abre sin cobertura.
+ *
+ * Se mira la forma de lo que la pantalla recorre —la lista de trámites y las
+ * oficinas de cada uno— y no cada campo de cada oficina: comprobar aquí el tipo
+ * de todo sería escribir por segunda vez los tipos que ya están escritos, y
+ * quedarían dos sitios donde acordarse de cambiarlos.
+ */
+function esLoUltimoConsultado(leido: unknown): leido is LoUltimoConsultado {
+  if (typeof leido !== 'object' || leido === null) return false
+
+  const { codigoPostal, elegidos, estado } = leido as Partial<LoUltimoConsultado>
+  if (typeof codigoPostal !== 'string' || avisoDe(codigoPostal) !== null) return false
+  if (!Array.isArray(elegidos) || elegidos.some((id) => typeof id !== 'number')) return false
+
+  return esUnaBusqueda(estado)
+}
+
+function esUnaBusqueda(estado: unknown): estado is LoQueVaLlegando {
+  if (typeof estado !== 'object' || estado === null) return false
+
+  const { cola, resueltos } = estado as Partial<LoQueVaLlegando>
+  if (!Array.isArray(cola) || !Array.isArray(resueltos)) return false
+
+  // Sin ni un trámite resuelto no hay nada que enseñar, y enseñar una pantalla
+  // vacía «de la última vez» es peor que no enseñar nada.
+  return (
+    resueltos.length > 0 &&
+    resueltos.every((resuelto: TramiteResuelto) => Array.isArray(resuelto?.oficinas))
+  )
 }

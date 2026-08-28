@@ -52,3 +52,14 @@ export function enFechaYHora(primerHueco: string): string {
 export function enHoraDeConsulta(instante: number): string {
   return HORA.format(new Date(instante))
 }
+
+/**
+ * Lo mismo, con el día entero.
+ *
+ * Existe para lo único que se enseña sin haberlo consultado ahora: lo que se
+ * guardó en el navegador y se saca cuando no hay cobertura. Eso sí puede ser de
+ * ayer, y «consultado a las 13:37» de un dato de ayer es una hora que engaña.
+ */
+export function enFechaYHoraDeConsulta(instante: number): string {
+  return FECHA_Y_HORA.format(new Date(instante))
+}

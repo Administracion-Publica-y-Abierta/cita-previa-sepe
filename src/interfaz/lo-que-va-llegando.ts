@@ -23,8 +23,15 @@ export type TramiteResuelto = Extract<EventoDeLaPasada, { tipo: 'tramite' }>
  */
 export type ComoAcaba = 'terminada' | 'rechazado' | 'sin-conexion'
 
-/** En qué punto está la búsqueda: lo de antes de acabar, y cómo acabó. */
-export type FaseDeLaBusqueda = 'inicial' | 'buscando' | ComoAcaba
+/**
+ * En qué punto está la búsqueda: lo de antes de acabar, y cómo acabó.
+ *
+ * `de-memoria` no es ninguna de las dos cosas y por eso está aparte: no se ha
+ * buscado nada, se está enseñando lo que se guardó la última vez porque ahora
+ * no hay red. Se distingue del resto porque lo que hay que decir de ello es
+ * otra cosa —de cuándo es, y que no se ha podido comprobar—.
+ */
+export type FaseDeLaBusqueda = 'inicial' | 'buscando' | ComoAcaba | 'de-memoria'
 
 /**
  * Cómo ha acabado, desde el transporte. `abandonada` es que se pidió otra por
@@ -130,6 +137,25 @@ export function sumando(estado: LoQueVaLlegando, evento: EventoDeLaPasada): LoQu
 
 export function acabada(estado: LoQueVaLlegando, fin: ComoAcaba): LoQueVaLlegando {
   return { ...estado, fase: fin, consultando: null }
+}
+
+/**
+ * Lo guardado la última vez, puesto delante porque no hay red para preguntar.
+ *
+ * El número de búsqueda vuelve a cero a propósito: el mapa encuadra cuando ese
+ * número cambia, y si lo recordado conservara el suyo, la primera búsqueda de
+ * verdad podría caer en el mismo y el mapa se quedaría quieto.
+ */
+export function deLaMemoria(estado: LoQueVaLlegando): LoQueVaLlegando {
+  return { ...estado, fase: 'de-memoria', busqueda: 0, consultando: null }
+}
+
+/**
+ * Los trámites de los que hay respuesta del SEPE, que son los que se están
+ * mirando. Los que fallaron no traen nada que enseñar.
+ */
+export function loQueContesto(estado: LoQueVaLlegando): TramiteResuelto[] {
+  return estado.resueltos.filter((resuelto) => resuelto.estado === 'ok')
 }
 
 /** Cuántos trámites quedan por llegar, contando el que se esté consultando. */

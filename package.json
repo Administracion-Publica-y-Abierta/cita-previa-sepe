@@ -12,7 +12,8 @@
     "tipos": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fixtures": "node scripts/extraer-fixtures.mjs"
+    "fixtures": "node scripts/extraer-fixtures.mjs",
+    "iconos": "node scripts/iconos.mjs"
   },
   "dependencies": {
     "maplibre-gl": "^6.6.0",
