@@ -98,20 +98,29 @@ caro —salir al SEPE— ya se pagó. `filtros-de-la-lista.tsx` es solo los cont
   `quienLasTapa` devuelve los que, **quitados ellos solos**, devuelven algún
   resultado. Cuando harían falta dos no se señala a ninguno: ofrecer quitar uno
   sería mandar a alguien a pulsar un botón que lo deja donde estaba.
-- **El «hoy» es el de la búsqueda, no el del navegador.** La referencia es el
-  `consultadoEn` que trae la cola, que es el instante con el que el SEPE
-  contestó esas horas. Así una pestaña abierta desde ayer no cambia de opinión
-  sola, y los tests no dependen de la hora a la que se ejecuten.
+- **El «hoy» es el del trámite, y no el de la cola.** La referencia es el
+  `consultadoEn` del evento `tramite`, que es el instante con el que el SEPE
+  contestó **esas horas**. El de la cola vale para lo suyo y no para esto: la
+  cola se guarda un día entero (`VIDA_DE_LA_COLA_MS`), así que usarlo haría que
+  «hoy» fuera ayer y dejara fuera todos los huecos de hoy sin decir por qué.
+  Con el del trámite, además, una pestaña abierta desde ayer no cambia de
+  opinión sola y los tests no dependen de la hora a la que se ejecuten.
 - **Los filtros van en el fragmento, con el código postal y por lo mismo.** Una
   búsqueda ya filtrada se comparte tal cual sin que el alojamiento registre de
   dónde es quien la abre. Solo se escribe lo que se ha tocado, y con
   `replaceState`: mover el deslizador dejaría noventa y nueve paradas en el
   historial.
 
-Y una consecuencia en los tests: la pantalla tiene ahora **dos regiones vivas**
+Dos consecuencias en los tests. La pantalla tiene ahora **dos regiones vivas**
 —el resumen de la búsqueda y el contador de lo que dejan los filtros—, así que
-el resumen se pide por su nombre con el ayudante `elResumen()` y no con
+cada una se pide por su nombre con `elResumen()` y `elContador()`, y no con
 `getByRole('status')` a secas.
+
+Y hay una segunda excepción al patrón de `userEvent`, escrita aquí por lo mismo
+que la del techo del freno: **el deslizador de distancia se mueve con
+`fireEvent.change`**. `userEvent` no sabe arrastrar un `range`, y llegar con las
+flechas serían noventa y cinco pulsaciones por test. Que se pueda mover con el
+teclado se prueba aparte, y ahí sí con la persona.
 
 ## El patrón de test: `montarApp()`
 

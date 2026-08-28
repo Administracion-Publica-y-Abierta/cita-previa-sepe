@@ -10,7 +10,7 @@ import {
   type FormEvent,
 } from 'react'
 import { avisoDe, DIGITOS, soloDigitos } from './codigo-postal'
-import { aplicando, type Filtros } from './filtros'
+import { aplicando, SIN_FILTROS, type Filtros } from './filtros'
 import { FiltrosDeLaLista } from './filtros-de-la-lista'
 import {
   acabada,
@@ -25,7 +25,6 @@ import {
   filtrosDeLaDireccion,
   ponerEnLaDireccion,
   recordarCodigoPostal,
-  SIN_FILTROS_EN_EL_SERVIDOR,
   ultimoCodigoPostal,
 } from './lo-que-recuerda-el-navegador'
 import { seguirLaPasada } from './pasada'
@@ -74,6 +73,9 @@ const SIN_CAMBIOS = () => () => {}
  * de en un desajuste de hidratación.
  */
 const EN_EL_SERVIDOR = () => ''
+
+/** Y de los filtros de un fragmento, tampoco: sin filtros no se filtra. */
+const SIN_FILTROS_EN_EL_SERVIDOR = () => SIN_FILTROS
 
 export function Hero() {
   // La búsqueda que trae el enlace, y el último código postal usado. Se leen
@@ -329,6 +331,7 @@ export function Hero() {
             {referencia !== null && (
               <FiltrosDeLaLista
                 alCambiar={cambiarFiltros}
+                cuantasSeVen={visibles.length}
                 filtros={filtros}
                 oficinas={oficinas}
                 referencia={referencia}
@@ -337,14 +340,15 @@ export function Hero() {
 
             {/* La lista y el mapa enseñan lo mismo: los dos son la misma
                 respuesta mirada de dos maneras, y un mapa con puntos que la
-                lista no tiene dejaría de serlo. */}
-            {visibles.length > 0 && (
-              <Resultados
-                busqueda={estado.busqueda}
-                localizacion={estado.localizacion}
-                oficinas={visibles}
-              />
-            )}
+                lista no tiene dejaría de serlo. Se quedan puestos aunque los
+                filtros no dejen ninguna: un mapa que desaparece al mover un
+                control se lleva la vista de donde se estaba mirando, y lo que
+                pasa ya lo dice el panel. */}
+            <Resultados
+              busqueda={estado.busqueda}
+              localizacion={estado.localizacion}
+              oficinas={visibles}
+            />
           </>
         )}
       </section>

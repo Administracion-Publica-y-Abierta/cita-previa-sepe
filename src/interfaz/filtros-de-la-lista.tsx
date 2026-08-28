@@ -2,18 +2,19 @@
 
 import { useId } from 'react'
 import {
-  contando,
+  CUANDOS,
+  FRANJAS,
   hayFiltros,
   KM_MAXIMO,
   KM_MINIMO,
   nombreDelFiltro,
+  ORDENES,
+  porQueNoQuedaNinguna,
   quienLasTapa,
   quitando,
   quitandoTodos,
-  type Cuando,
-  type Culpable,
   type Filtros,
-  type Franja,
+  type Opcion,
   type Orden,
 } from './filtros'
 import { enKilometros } from './formato'
@@ -22,9 +23,10 @@ import type { OficinaConSuTramite } from './lo-que-va-llegando'
 /**
  * Los controles con los que se estrecha la lista que ya ha llegado.
  *
- * Aquí no hay ni una decisión: quién queda dentro, quién ordena antes y qué
- * filtro está tapando la lista lo decide `filtros.ts`, que son funciones puras
- * y se prueban sin montar pantalla. Esto es la parte que hay que ver y tocar.
+ * Aquí no hay ni una decisión: quién queda dentro, quién ordena antes, qué
+ * filtro está tapando la lista y cómo se dice todo eso lo decide `filtros.ts`,
+ * que son funciones puras y se prueban sin montar pantalla. Esto es la parte
+ * que hay que ver y tocar.
  *
  * Las dos cosas que este panel tiene que hacer bien, y que son las que sacan a
  * alguien de un callejón sin salida: **el contador siempre a la vista**, para
@@ -32,51 +34,31 @@ import type { OficinaConSuTramite } from './lo-que-va-llegando'
  * y cuando no queda nada, **decir qué filtro las tapa** y poder quitarlo de un
  * clic, en vez de tener que empezar de cero.
  */
-
-/** El texto de cada opción de franja, y el orden en que se enseñan. */
-const FRANJAS: { valor: Franja; texto: string }[] = [
-  { valor: 'cualquiera', texto: 'Cualquier hora' },
-  { valor: 'manana', texto: 'Por la mañana' },
-  { valor: 'tarde', texto: 'Por la tarde' },
-]
-
-/**
- * Los días van escritos en la propia opción —«(7 días)»— y no solo «esta
- * semana». Una semana natural que acabe mañana convertiría el filtro en algo
- * que casi nunca deja nada, y quien lo lee no tendría cómo saber por qué.
- */
-const CUANDOS: { valor: Cuando; texto: string }[] = [
-  { valor: 'cualquiera', texto: 'Cualquier fecha' },
-  { valor: 'hoy', texto: 'Hoy' },
-  { valor: 'semana', texto: 'Esta semana (7 días)' },
-  { valor: 'mes', texto: 'Este mes (30 días)' },
-]
-
-const ORDENES: { valor: Orden; texto: string }[] = [
-  { valor: 'distancia', texto: 'Distancia' },
-  { valor: 'antes', texto: 'Lo antes posible' },
-]
-
 export function FiltrosDeLaLista({
   filtros,
   alCambiar,
   oficinas,
+  cuantasSeVen,
   referencia,
 }: {
   filtros: Filtros
   alCambiar: (filtros: Filtros) => void
   /** Todas las que han llegado, **sin filtrar**: el contador cuenta sobre esto. */
   oficinas: OficinaConSuTramite[]
+  /** Cuántas quedan puestos los filtros. La lista ya filtrada la pinta quien llama. */
+  cuantasSeVen: number
   /** Desde cuándo se cuentan «hoy», «esta semana» y «este mes». */
   referencia: number
 }) {
   const distancia = useId()
   const orden = useId()
-  const { visibles, total } = contando(oficinas, filtros, referencia)
   const tapando = quienLasTapa(oficinas, filtros, referencia)
 
   return (
-    <section aria-label="Filtros de la lista" className="flex flex-col gap-5 rounded-lg border border-black/10 p-5 dark:border-white/15">
+    <section
+      aria-label="Filtros de la lista"
+      className="flex flex-col gap-5 rounded-lg border border-black/10 p-5 dark:border-white/15"
+    >
       <div className="flex flex-col gap-2">
         <label className="text-base font-medium" htmlFor={distancia}>
           Distancia máxima: {aQueDistancia(filtros.km)}
@@ -118,7 +100,10 @@ export function FiltrosDeLaLista({
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-base font-medium">Cuándo hay hueco</legend>
+        {/* «Cuándo es el primer hueco» y no «cuándo hay hueco»: lo segundo se
+            lee como la disponibilidad de la oficina, que es justo lo que esta
+            pantalla no sabe y no puede dar a entender que sabe. */}
+        <legend className="text-base font-medium">Cuándo es el primer hueco</legend>
 
         <Opciones
           alElegir={(cuando) => alCambiar({ ...filtros, cuando })}
@@ -151,26 +136,31 @@ export function FiltrosDeLaLista({
         El contador está siempre, con filtros y sin ellos: es lo que deja ver de
         un vistazo que la lista está corta porque uno la ha acortado, y no
         porque no haya citas. En una región viva porque cambia sin que nada se
-        mueva de sitio, y quien no ve la lista necesita enterarse igual.
+        mueva de sitio, y quien no ve la lista necesita enterarse igual. Con
+        nombre, porque en esta pantalla hay otra —el resumen de la búsqueda—.
       */}
-      <div aria-label="Oficinas que dejan los filtros" className="flex flex-col gap-2 text-base" role="status">
+      <div
+        aria-label="Oficinas que dejan los filtros"
+        className="flex flex-col gap-2 text-base"
+        role="status"
+      >
         <p className="font-medium">
-          {visibles} de {total} {total === 1 ? 'oficina' : 'oficinas'}
+          {cuantasSeVen} de {oficinas.length} {oficinas.length === 1 ? 'oficina' : 'oficinas'}
         </p>
 
-        {visibles === 0 && <p>Ninguna oficina pasa los filtros. {loQueLasTapa(tapando)}</p>}
+        {cuantasSeVen === 0 && <p>Ninguna oficina pasa los filtros. {porQueNoQuedaNinguna(tapando)}</p>}
       </div>
 
       {(tapando.length > 0 || hayFiltros(filtros)) && (
         <div className="flex flex-wrap gap-3">
-          {tapando.map((culpable) => (
+          {tapando.map((filtro) => (
             <button
               className="rounded-lg border-2 border-black/30 px-4 py-2 text-base font-medium dark:border-white/30"
-              key={culpable}
-              onClick={() => alCambiar(quitando(filtros, culpable))}
+              key={filtro}
+              onClick={() => alCambiar(quitando(filtros, filtro))}
               type="button"
             >
-              Quitar el filtro de {nombreDelFiltro(culpable)}
+              Quitar el filtro de {nombreDelFiltro(filtro)}
             </button>
           ))}
 
@@ -202,7 +192,7 @@ function Opciones<Valor extends string>({
   grupo,
   alElegir,
 }: {
-  opciones: { valor: Valor; texto: string }[]
+  opciones: Opcion<Valor>[]
   elegida: Valor
   /** El `name` que ata las opciones entre sí, y que las hace excluyentes. */
   grupo: string
@@ -229,21 +219,4 @@ function Opciones<Valor extends string>({
 /** El tope del control no es un radio: es no filtrar, y así se dice. */
 function aQueDistancia(km: number): string {
   return km === KM_MAXIMO ? 'Sin límite' : enKilometros(km)
-}
-
-/**
- * Qué filtro está tapando la lista, dicho para poder quitarlo.
- *
- * Cuando no hay ninguno que la devuelva por sí solo se dice eso mismo: ofrecer
- * quitar uno cualquiera sería mandar a alguien a pulsar un botón que lo deja
- * donde estaba.
- */
-function loQueLasTapa(tapando: Culpable[]): string {
-  if (tapando.length === 0) return 'Quita los filtros para volver a la lista completa.'
-
-  const nombres = tapando.map(nombreDelFiltro)
-  if (nombres.length === 1) return `El filtro de ${nombres[0]} es el que las está tapando.`
-
-  const ultimo = nombres[nombres.length - 1]
-  return `Los filtros de ${nombres.slice(0, -1).join(', ')} y ${ultimo} son los que las están tapando.`
 }

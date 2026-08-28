@@ -69,9 +69,19 @@ export function oficina(parcial: Partial<Oficina> = {}): Oficina {
   }
 }
 
-/** Qué trámites hay en la zona y desde dónde se miden los kilómetros. */
-export function cola(tramites: Subtramite[], estado: EstadoDeLaCola = 'ok'): EventoDeLaPasada {
-  return { tipo: 'cola', estado, consultadoEn: CONSULTADO_EN, localizacion: GRANOLLERS, tramites }
+/**
+ * Qué trámites hay en la zona y desde dónde se miden los kilómetros.
+ *
+ * El `consultadoEn` se puede mover porque el de la cola **no** es el de las
+ * horas: la cola se guarda un día entero, así que un test tiene que poder
+ * ponerla rancia y comprobar que los filtros de fecha no le hacen caso.
+ */
+export function cola(
+  tramites: Subtramite[],
+  estado: EstadoDeLaCola = 'ok',
+  consultadoEn: number = CONSULTADO_EN,
+): EventoDeLaPasada {
+  return { tipo: 'cola', estado, consultadoEn, localizacion: GRANOLLERS, tramites }
 }
 
 /** Un trámite resuelto, con lo que haya salido de él. */

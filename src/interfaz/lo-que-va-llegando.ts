@@ -41,10 +41,14 @@ export interface LoQueVaLlegando {
   busqueda: number
   localizacion: Localizacion | null
   /**
-   * Cuándo se hizo esta búsqueda, que es desde donde cuentan «hoy», «esta
-   * semana» y «este mes». Es el instante del servidor y no el del navegador a
-   * propósito: es el mismo con el que el SEPE contestó las horas que se están
-   * mirando. `null` mientras no ha llegado la cola.
+   * Cuándo contestó el SEPE las horas que se están mirando, que es desde donde
+   * cuentan «hoy», «esta semana» y «este mes».
+   *
+   * Es el del **trámite** y no el de la cola, y la diferencia no es un matiz:
+   * la cola se guarda un día entero (`VIDA_DE_LA_COLA_MS`), así que su instante
+   * puede ser el de ayer y «hoy» dejaría fuera todos los huecos de hoy sin
+   * decir por qué. `null` mientras no ha llegado ningún trámite, que es también
+   * mientras no hay ninguna oficina que filtrar.
    */
   consultadoEn: number | null
   /** Cómo ha ido descubrir qué trámites hay en la zona. `null` mientras no se sabe. */
@@ -90,14 +94,21 @@ export function sumando(estado: LoQueVaLlegando, evento: EventoDeLaPasada): LoQu
       return {
         ...estado,
         localizacion: evento.localizacion,
-        consultadoEn: evento.consultadoEn,
         estadoDeLaCola: evento.estado,
         cola: evento.tramites,
       }
     case 'consultando':
       return { ...estado, consultando: tramiteDe(evento) }
     case 'tramite':
-      return { ...estado, consultando: null, resueltos: [...estado.resueltos, evento] }
+      return {
+        ...estado,
+        consultando: null,
+        // El más reciente de los que han llegado: una respuesta servida de la
+        // caché trae el instante en que se pidió de verdad, y quedarse con el
+        // más viejo sería fechar la búsqueda por su parte más rancia.
+        consultadoEn: Math.max(estado.consultadoEn ?? 0, evento.consultadoEn),
+        resueltos: [...estado.resueltos, evento],
+      }
     // Lo que falta se lo queda el transporte, que es quien vuelve a pedirlo.
     // Aquí solo cuenta que ahora mismo no se está consultando nada.
     case 'pendientes':

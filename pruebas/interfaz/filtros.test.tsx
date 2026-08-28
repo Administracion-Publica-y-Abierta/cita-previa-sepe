@@ -2,8 +2,17 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { UserEvent } from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import Portada from '@/app/page'
-import { buscar, listaDeOficinas, montarPortada } from './la-portada'
-import { apiQueContesta, hueco, oficina, pasadaDeUnTramite, type ApiFalsa } from './sepe-en-el-navegador'
+import { buscar, elContador, listaDeOficinas, montarPortada } from './la-portada'
+import {
+  apiQueContesta,
+  cola,
+  consultando,
+  hueco,
+  oficina,
+  pasadaDeUnTramite,
+  resuelto,
+  type ApiFalsa,
+} from './sepe-en-el-navegador'
 
 /**
  * Los filtros, probados como los usa quien tiene la lista delante: se mueve un
@@ -119,7 +128,7 @@ describe('el filtro de franja', () => {
   it('dice que es el primer hueco de cada oficina y no su agenda entera', async () => {
     await conLaListaDelante()
 
-    const franja = screen.getByRole('group', { name: /primer hueco/i })
+    const franja = screen.getByRole('group', { name: /^primer hueco de la oficina$/i })
     // Lo que no puede hacer es dejar creer que enseña todos los huecos: el
     // desglose por horas del SEPE pide DNI y esta fase no lo pide.
     expect(within(franja).getByText(/no.*(agenda|todos los huecos)/i)).toBeTruthy()
@@ -225,6 +234,18 @@ describe('cuando no queda ninguna', () => {
   })
 })
 
+describe('la lista y el mapa cuando no queda ninguna', () => {
+  it('siguen puestos: lo que pasa lo cuenta el panel, no la pantalla vaciándose', async () => {
+    await conLaListaDelante()
+
+    ponerA(screen.getByLabelText(/distancia máxima/i), 1)
+
+    // La lista sigue siendo la lista, vacía; y el mapa sigue donde estaba.
+    expect(await loQueSeVe()).toEqual([])
+    expect(screen.getByRole('region', { name: /mapa de las oficinas/i })).toBeTruthy()
+  })
+})
+
 describe('quitar filtros', () => {
   it('devuelve la lista entera de una vez', async () => {
     const { persona } = await conLaListaDelante()
@@ -286,8 +307,8 @@ describe('los filtros con el teclado y con lector de pantalla', () => {
 
     expect(screen.getByRole('slider', { name: /distancia máxima/i })).toBeTruthy()
     expect(screen.getByRole('combobox', { name: /ordenar/i })).toBeTruthy()
-    expect(screen.getByRole('group', { name: /primer hueco/i })).toBeTruthy()
-    expect(screen.getByRole('group', { name: /cuándo/i })).toBeTruthy()
+    expect(screen.getByRole('group', { name: /^primer hueco de la oficina$/i })).toBeTruthy()
+    expect(screen.getByRole('group', { name: /cuándo es el primer hueco/i })).toBeTruthy()
   })
 
   it('se llega a todos tabulando y se cambian sin ratón', async () => {
@@ -298,14 +319,14 @@ describe('los filtros con el teclado y con lector de pantalla', () => {
     expect(document.activeElement).toBe(control)
 
     await persona.tab()
-    // Lo siguiente al control de distancia es el primer radio de la franja: no
-    // hay nada por el camino que solo se pueda tocar con el ratón.
-    expect(document.activeElement?.getAttribute('type')).toBe('radio')
+    // Lo siguiente al control de distancia es el radio de la franja que está
+    // elegido: no hay nada por el camino que solo se pueda tocar con el ratón.
+    expect(document.activeElement).toBe(radio(/cualquier hora/i))
   })
 
   it('el contador se anuncia solo cuando cambia', async () => {
     await conLaListaDelante()
-    expect(screen.getByText(/3 de 3 oficinas/i).closest('[role="status"]')).toBeTruthy()
+    expect(elContador().textContent).toMatch(/3 de 3 oficinas/i)
   })
 })
 
@@ -319,3 +340,27 @@ describe('los filtros con el teclado y con lector de pantalla', () => {
 function ponerA(control: HTMLElement, valor: number): void {
   fireEvent.change(control, { target: { value: String(valor) } })
 }
+
+describe('desde cuándo se cuentan «hoy», «esta semana» y «este mes»', () => {
+  it('desde el trámite y no desde la cola, que se guarda un día entero', async () => {
+    // Es el caso real: una zona cuya cola se descubrió ayer y cuyas horas son
+    // de hace un minuto. Si mandara la cola, «hoy» se leería como ayer y
+    // dejaría fuera todos los huecos de hoy sin decir por qué.
+    const AYER = 24 * 60 * 60 * 1000
+    const tramite = { id: 631, nombre: 'Voy a salir al extranjero' }
+    const deHoy = oficina({ id: 1, km: 2, primerHueco: hueco(0, 9) })
+
+    const persona = montarPortada()
+    apiQueContesta([
+      cola([tramite], 'ok', Date.parse('2026-08-13T13:37:10+02:00') - AYER),
+      consultando(tramite),
+      resuelto({ tramite, oficinas: [deHoy] }),
+    ])
+    await buscar(persona, '08401')
+    await listaDeOficinas()
+
+    await persona.click(radio(/^hoy$/i))
+
+    expect(await loQueSeVe()).toEqual([deHoy.nombre])
+  })
+})

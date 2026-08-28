@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   aplicando,
-  contando,
   deLaDireccion,
   enLaDireccion,
   hayFiltros,
   KM_MAXIMO,
   KM_MINIMO,
   nombreDelFiltro,
+  porQueNoQuedaNinguna,
   quienLasTapa,
   quitando,
+  quitandoTodos,
   SIN_FILTROS,
   type Filtros,
 } from './filtros'
@@ -137,13 +138,6 @@ describe('el orden', () => {
   })
 })
 
-describe('el contador', () => {
-  it('dice cuántas se ven de cuántas hay', () => {
-    const oficinas = [oficina({ id: 1, km: 2 }), oficina({ id: 2, km: 40 })]
-    expect(contando(oficinas, con({ km: 5 }), LUNES)).toEqual({ visibles: 1, total: 2 })
-  })
-})
-
 describe('qué filtro las está tapando', () => {
   const lejos = oficina({ id: 1, km: 40, primerHueco: '2026-08-17T09:00:00' })
 
@@ -180,6 +174,22 @@ describe('qué filtro las está tapando', () => {
   })
 })
 
+describe('por qué no queda ninguna', () => {
+  it('nombra el filtro cuando quitarlo basta', () => {
+    expect(porQueNoQuedaNinguna(['distancia'])).toBe('El filtro de distancia es el que las está tapando.')
+  })
+
+  it('los nombra todos cuando cualquiera de ellos bastaría', () => {
+    expect(porQueNoQuedaNinguna(['distancia', 'franja'])).toBe(
+      'Los filtros de distancia y franja horaria son los que las están tapando.',
+    )
+  })
+
+  it('sin culpable manda a quitarlos todos, que es lo único que las devuelve', () => {
+    expect(porQueNoQuedaNinguna([])).toMatch(/quita los filtros/i)
+  })
+})
+
 describe('quitar filtros', () => {
   it('sin nada puesto no hay filtros que quitar', () => {
     expect(hayFiltros(SIN_FILTROS)).toBe(false)
@@ -193,6 +203,12 @@ describe('quitar filtros', () => {
     expect(hayFiltros(con({ km: 5 }))).toBe(true)
     expect(hayFiltros(con({ franja: 'tarde' }))).toBe(true)
     expect(hayFiltros(con({ cuando: 'hoy' }))).toBe(true)
+  })
+
+  it('quitarlos todos devuelve el resultado completo y conserva el orden elegido', () => {
+    expect(quitandoTodos(con({ km: 5, franja: 'tarde', cuando: 'hoy', orden: 'antes' }))).toEqual(
+      con({ orden: 'antes' }),
+    )
   })
 
   it('quitar uno deja los demás y respeta el orden elegido', () => {

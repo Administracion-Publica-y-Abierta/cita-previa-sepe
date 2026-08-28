@@ -2,13 +2,12 @@ import { avisoDe, soloDigitos } from './codigo-postal'
 import { deLaDireccion, enLaDireccion, SIN_FILTROS, type Filtros } from './filtros'
 
 /**
- * Las dos únicas cosas que esta web recuerda, y las dos viven en el navegador
- * de quien pregunta: el último código postal usado y el de la búsqueda que
- * está mirando.
+ * Lo único que esta web recuerda, y todo ello vive en el navegador de quien
+ * pregunta: el último código postal usado, y el de la búsqueda que está
+ * mirando con los filtros que le haya puesto.
  *
- * Ninguna de las dos toca un servidor nuestro. Es lo que permite que la
- * portada diga que no guardamos ningún dato sin tener que matizarlo con letra
- * pequeña.
+ * Nada de esto toca un servidor nuestro. Es lo que permite que la portada diga
+ * que no guardamos ningún dato sin tener que matizarlo con letra pequeña.
  */
 
 const CLAVE = 'ultimo-codigo-postal'
@@ -57,9 +56,6 @@ export function filtrosDeLaDireccion(): Filtros {
   return ultimosFiltros
 }
 
-/** Lo que sabe el servidor de un fragmento: nada. Y sin filtros no se filtra. */
-export const SIN_FILTROS_EN_EL_SERVIDOR = (): Filtros => SIN_FILTROS
-
 /**
  * Deja la búsqueda y sus filtros escritos en la dirección, sin apuntarlos en el
  * historial.
@@ -70,7 +66,7 @@ export const SIN_FILTROS_EN_EL_SERVIDOR = (): Filtros => SIN_FILTROS
  * que hay filtros vale doble: mover el control de distancia dejaría noventa y
  * nueve paradas en el historial.
  */
-export function ponerEnLaDireccion(codigoPostal: string, filtros: Filtros = SIN_FILTROS): void {
+export function ponerEnLaDireccion(codigoPostal: string, filtros: Filtros): void {
   const puestos = enLaDireccion(filtros)
   window.history.replaceState(null, '', `#${PARAMETRO}=${codigoPostal}${puestos ? `&${puestos}` : ''}`)
 }

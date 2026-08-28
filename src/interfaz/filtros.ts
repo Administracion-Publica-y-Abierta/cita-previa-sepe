@@ -10,6 +10,10 @@ import type { OficinaConSuTramite } from './lo-que-va-llegando'
  * Y por eso también se pueden probar sin montar la pantalla, que es donde se
  * comprueba lo que de verdad importa: que «por la tarde» deje fuera lo que
  * tiene que dejar y no una hora de más.
+ *
+ * Los textos de las opciones viven aquí y no en el componente por lo mismo que
+ * los de `resumen.ts`: son decisiones de idioma y de honradez —«(7 días)» va
+ * escrito en la opción a propósito—, no de maquetación.
  */
 
 /**
@@ -22,7 +26,7 @@ import type { OficinaConSuTramite } from './lo-que-va-llegando'
  */
 export type Franja = 'cualquiera' | 'manana' | 'tarde'
 
-/** Para cuándo se busca hueco. */
+/** Para cuándo se busca hueco. También del primero, no de la agenda. */
 export type Cuando = 'cualquiera' | 'hoy' | 'semana' | 'mes'
 
 export type Orden = 'distancia' | 'antes'
@@ -34,6 +38,35 @@ export interface Filtros {
   cuando: Cuando
   orden: Orden
 }
+
+/** Una opción de un grupo, con lo que se lee en su control. */
+export interface Opcion<Valor extends string> {
+  valor: Valor
+  texto: string
+}
+
+export const FRANJAS: Opcion<Franja>[] = [
+  { valor: 'cualquiera', texto: 'Cualquier hora' },
+  { valor: 'manana', texto: 'Por la mañana' },
+  { valor: 'tarde', texto: 'Por la tarde' },
+]
+
+/**
+ * Los días van escritos en la propia opción —«(7 días)»— y no solo «esta
+ * semana». Una semana natural que acabe mañana convertiría el filtro en algo
+ * que casi nunca deja nada, y quien lo lee no tendría cómo saber por qué.
+ */
+export const CUANDOS: Opcion<Cuando>[] = [
+  { valor: 'cualquiera', texto: 'Cualquier fecha' },
+  { valor: 'hoy', texto: 'Hoy' },
+  { valor: 'semana', texto: 'Esta semana (7 días)' },
+  { valor: 'mes', texto: 'Este mes (30 días)' },
+]
+
+export const ORDENES: Opcion<Orden>[] = [
+  { valor: 'distancia', texto: 'Distancia' },
+  { valor: 'antes', texto: 'Lo antes posible' },
+]
 
 /**
  * El radio baja hasta un kilómetro porque quien no tiene coche no busca «cerca»
@@ -55,25 +88,16 @@ export const SIN_FILTROS: Filtros = {
   orden: 'distancia',
 }
 
-/** Cada uno de los tres que pueden dejar fuera a una oficina. El orden no. */
-export type Culpable = 'distancia' | 'franja' | 'fecha'
-
-const CULPABLES: Culpable[] = ['distancia', 'franja', 'fecha']
-
 /**
- * Cómo se nombra cada filtro dentro de una frase, para poder decir cuál está
- * tapando la lista sin que quien lee tenga que adivinar a qué control mirar.
+ * Cada uno de los tres que pueden dejar fuera a una oficina. El orden no es uno
+ * de ellos: cambia por dónde se empieza a leer, no quién sale en la lista.
+ *
+ * En un orden fijo y escrito, porque es el orden en que se nombran cuando hay
+ * que decir cuáles están tapando la lista.
  */
-export function nombreDelFiltro(culpable: Culpable): string {
-  switch (culpable) {
-    case 'distancia':
-      return 'distancia'
-    case 'franja':
-      return 'franja horaria'
-    case 'fecha':
-      return 'fecha'
-  }
-}
+const CUALES = ['distancia', 'franja', 'fecha'] as const
+
+export type Filtro = (typeof CUALES)[number]
 
 /**
  * Las dos de la tarde.
@@ -88,23 +112,61 @@ const EMPIEZA_LA_TARDE = 14
 /** Cuántos días cubre cada opción de fecha, contando hoy. */
 const DIAS = { hoy: 1, semana: 7, mes: 30 } as const
 
+/**
+ * Todo lo que hay que saber de un filtro, junto: cómo se llama dentro de una
+ * frase, si está puesto, cómo se quita y a quién deja pasar.
+ *
+ * En una sola tabla y no en cuatro `switch` sobre lo mismo porque lo que se
+ * añade el día que haya un cuarto filtro es una entrada, no cuatro ramas
+ * repartidas por el fichero.
+ */
+const FILTROS: Record<
+  Filtro,
+  {
+    nombre: string
+    puesto: (filtros: Filtros) => boolean
+    quitar: (filtros: Filtros) => Filtros
+    pasa: (oficina: OficinaConSuTramite, filtros: Filtros, referencia: number) => boolean
+  }
+> = {
+  distancia: {
+    nombre: 'distancia',
+    puesto: (filtros) => filtros.km !== SIN_FILTROS.km,
+    quitar: (filtros) => ({ ...filtros, km: SIN_FILTROS.km }),
+    pasa: (oficina, filtros) => filtros.km === KM_MAXIMO || oficina.km <= filtros.km,
+  },
+  franja: {
+    nombre: 'franja horaria',
+    puesto: (filtros) => filtros.franja !== SIN_FILTROS.franja,
+    quitar: (filtros) => ({ ...filtros, franja: SIN_FILTROS.franja }),
+    pasa: (oficina, filtros) =>
+      filtros.franja === 'cualquiera' || enLaFranja(oficina.primerHueco, filtros.franja),
+  },
+  fecha: {
+    nombre: 'fecha',
+    puesto: (filtros) => filtros.cuando !== SIN_FILTROS.cuando,
+    quitar: (filtros) => ({ ...filtros, cuando: SIN_FILTROS.cuando }),
+    pasa: (oficina, filtros, referencia) =>
+      filtros.cuando === 'cualquiera' ||
+      antesDe(oficina.primerHueco, ultimoDia(referencia, DIAS[filtros.cuando])),
+  },
+}
+
+/** Cómo se nombra un filtro dentro de una frase o en el botón que lo quita. */
+export function nombreDelFiltro(filtro: Filtro): string {
+  return FILTROS[filtro].nombre
+}
+
 export function aplicando(
   oficinas: OficinaConSuTramite[],
   filtros: Filtros,
   /** Desde cuándo se cuentan «hoy», «esta semana» y «este mes». */
   referencia: number,
 ): OficinaConSuTramite[] {
-  const dentro = oficinas.filter((oficina) => CULPABLES.every((cual) => pasa(oficina, filtros, cual, referencia)))
+  const dentro = oficinas.filter((oficina) =>
+    CUALES.every((cual) => FILTROS[cual].pasa(oficina, filtros, referencia)),
+  )
   return ordenando(dentro, filtros.orden)
-}
-
-/** Cuántas se ven y cuántas hay: el contador que dice si uno se ha pasado. */
-export function contando(
-  oficinas: OficinaConSuTramite[],
-  filtros: Filtros,
-  referencia: number,
-): { visibles: number; total: number } {
-  return { visibles: aplicando(oficinas, filtros, referencia).length, total: oficinas.length }
 }
 
 /**
@@ -121,64 +183,50 @@ export function quienLasTapa(
   oficinas: OficinaConSuTramite[],
   filtros: Filtros,
   referencia: number,
-): Culpable[] {
+): Filtro[] {
   // Sin oficinas no hay nada tapado: lo que pasa es que no ha llegado nada, y
   // eso ya lo cuenta el resumen de la búsqueda.
   if (oficinas.length === 0) return []
   if (aplicando(oficinas, filtros, referencia).length > 0) return []
 
-  return CULPABLES.filter(
-    (cual) => esta(filtros, cual) && aplicando(oficinas, quitando(filtros, cual), referencia).length > 0,
+  return CUALES.filter(
+    (cual) =>
+      FILTROS[cual].puesto(filtros) &&
+      aplicando(oficinas, quitando(filtros, cual), referencia).length > 0,
   )
+}
+
+/**
+ * Por qué no queda ninguna, dicho para poder arreglarlo.
+ *
+ * Cuando no hay ningún filtro que las devuelva por sí solo se dice eso mismo:
+ * ofrecer quitar uno cualquiera sería mandar a alguien a pulsar un botón que lo
+ * deja donde estaba.
+ */
+export function porQueNoQuedaNinguna(tapando: Filtro[]): string {
+  if (tapando.length === 0) return 'Quita los filtros para volver a la lista completa.'
+
+  const nombres = tapando.map(nombreDelFiltro)
+  const [primero] = nombres
+  if (nombres.length === 1) return `El filtro de ${primero} es el que las está tapando.`
+
+  const ultimo = nombres[nombres.length - 1]
+  return `Los filtros de ${nombres.slice(0, -1).join(', ')} y ${ultimo} son los que las están tapando.`
 }
 
 /** Si hay algo puesto que esté dejando oficinas fuera. El orden no deja a nadie fuera. */
 export function hayFiltros(filtros: Filtros): boolean {
-  return CULPABLES.some((cual) => esta(filtros, cual))
+  return CUALES.some((cual) => FILTROS[cual].puesto(filtros))
 }
 
 /** Los mismos filtros sin ese. El orden elegido se respeta: no es un filtro. */
-export function quitando(filtros: Filtros, culpable: Culpable): Filtros {
-  switch (culpable) {
-    case 'distancia':
-      return { ...filtros, km: SIN_FILTROS.km }
-    case 'franja':
-      return { ...filtros, franja: SIN_FILTROS.franja }
-    case 'fecha':
-      return { ...filtros, cuando: SIN_FILTROS.cuando }
-  }
+export function quitando(filtros: Filtros, filtro: Filtro): Filtros {
+  return FILTROS[filtro].quitar(filtros)
 }
 
 /** Vuelta al resultado completo, conservando por qué se ordenaba. */
 export function quitandoTodos(filtros: Filtros): Filtros {
   return { ...SIN_FILTROS, orden: filtros.orden }
-}
-
-function esta(filtros: Filtros, culpable: Culpable): boolean {
-  switch (culpable) {
-    case 'distancia':
-      return filtros.km !== SIN_FILTROS.km
-    case 'franja':
-      return filtros.franja !== SIN_FILTROS.franja
-    case 'fecha':
-      return filtros.cuando !== SIN_FILTROS.cuando
-  }
-}
-
-function pasa(
-  oficina: OficinaConSuTramite,
-  filtros: Filtros,
-  culpable: Culpable,
-  referencia: number,
-): boolean {
-  switch (culpable) {
-    case 'distancia':
-      return filtros.km === KM_MAXIMO || oficina.km <= filtros.km
-    case 'franja':
-      return filtros.franja === 'cualquiera' || enLaFranja(oficina.primerHueco, filtros.franja)
-    case 'fecha':
-      return filtros.cuando === 'cualquiera' || antesDe(oficina.primerHueco, limite(referencia, DIAS[filtros.cuando]))
-  }
 }
 
 /**
@@ -193,12 +241,12 @@ function enLaFranja(primerHueco: string | null, franja: Exclude<Franja, 'cualqui
   return franja === 'manana' ? hora < EMPIEZA_LA_TARDE : hora >= EMPIEZA_LA_TARDE
 }
 
-function antesDe(primerHueco: string | null, ultimoDia: string): boolean {
+function antesDe(primerHueco: string | null, ultimo: string): boolean {
   if (primerHueco === null) return false
   // Por día y no por hora: quien pide «esta semana» no está pidiendo «dentro de
   // ciento sesenta y ocho horas», y cortar a la hora exacta dejaría fuera un
   // hueco del último día por haber preguntado por la tarde.
-  return primerHueco.slice(0, 10) <= ultimoDia
+  return primerHueco.slice(0, 10) <= ultimo
 }
 
 /**
@@ -206,15 +254,13 @@ function antesDe(primerHueco: string | null, ultimoDia: string): boolean {
  *
  * Las fechas se comparan como cadenas, igual que en el resto de la aplicación:
  * ese formato ordena escrito igual que en el tiempo, y así no hay que meter en
- * la comparación una zona horaria que las horas del SEPE no traen.
+ * la comparación una zona horaria que las horas del SEPE no traen. El día se
+ * saca con el reloj del navegador, que es el mismo con el que se escriben las
+ * horas en la lista.
  */
-function limite(referencia: number, dias: number): string {
+function ultimoDia(referencia: number, dias: number): string {
   const fecha = new Date(referencia)
   fecha.setDate(fecha.getDate() + dias - 1)
-  return enDia(fecha)
-}
-
-function enDia(fecha: Date): string {
   const mes = String(fecha.getMonth() + 1).padStart(2, '0')
   const dia = String(fecha.getDate()).padStart(2, '0')
   return `${fecha.getFullYear()}-${mes}-${dia}`
@@ -238,13 +284,6 @@ function porElHueco(una: OficinaConSuTramite, otra: OficinaConSuTramite): number
   return una.primerHueco < otra.primerHueco ? -1 : 1
 }
 
-/** El nombre de cada filtro dentro del fragmento de la dirección. */
-const PARAMETROS = { km: 'km', franja: 'franja', cuando: 'cuando', orden: 'orden' } as const
-
-const FRANJAS: Franja[] = ['cualquiera', 'manana', 'tarde']
-const CUANDOS: Cuando[] = ['cualquiera', 'hoy', 'semana', 'mes']
-const ORDENES: Orden[] = ['distancia', 'antes']
-
 /**
  * Los filtros, escritos para la dirección de la página.
  *
@@ -255,10 +294,10 @@ const ORDENES: Orden[] = ['distancia', 'antes']
  */
 export function enLaDireccion(filtros: Filtros): string {
   const partes = new URLSearchParams()
-  if (filtros.km !== SIN_FILTROS.km) partes.set(PARAMETROS.km, String(filtros.km))
-  if (filtros.franja !== SIN_FILTROS.franja) partes.set(PARAMETROS.franja, filtros.franja)
-  if (filtros.cuando !== SIN_FILTROS.cuando) partes.set(PARAMETROS.cuando, filtros.cuando)
-  if (filtros.orden !== SIN_FILTROS.orden) partes.set(PARAMETROS.orden, filtros.orden)
+  if (filtros.km !== SIN_FILTROS.km) partes.set('km', String(filtros.km))
+  if (filtros.franja !== SIN_FILTROS.franja) partes.set('franja', filtros.franja)
+  if (filtros.cuando !== SIN_FILTROS.cuando) partes.set('cuando', filtros.cuando)
+  if (filtros.orden !== SIN_FILTROS.orden) partes.set('orden', filtros.orden)
   return partes.toString()
 }
 
@@ -270,10 +309,10 @@ export function enLaDireccion(filtros: Filtros): string {
 export function deLaDireccion(fragmento: string): Filtros {
   const partes = new URLSearchParams(fragmento)
   return {
-    km: kmDe(partes.get(PARAMETROS.km)),
-    franja: unaDe(FRANJAS, partes.get(PARAMETROS.franja), SIN_FILTROS.franja),
-    cuando: unaDe(CUANDOS, partes.get(PARAMETROS.cuando), SIN_FILTROS.cuando),
-    orden: unaDe(ORDENES, partes.get(PARAMETROS.orden), SIN_FILTROS.orden),
+    km: kmDe(partes.get('km')),
+    franja: unaDe(FRANJAS, partes.get('franja'), SIN_FILTROS.franja),
+    cuando: unaDe(CUANDOS, partes.get('cuando'), SIN_FILTROS.cuando),
+    orden: unaDe(ORDENES, partes.get('orden'), SIN_FILTROS.orden),
   }
 }
 
@@ -283,6 +322,10 @@ function kmDe(crudo: string | null): number {
   return km
 }
 
-function unaDe<Valor extends string>(validos: Valor[], crudo: string | null, porDefecto: Valor): Valor {
-  return validos.find((valido) => valido === crudo) ?? porDefecto
+function unaDe<Valor extends string>(
+  opciones: Opcion<Valor>[],
+  crudo: string | null,
+  porDefecto: Valor,
+): Valor {
+  return opciones.find((opcion) => opcion.valor === crudo)?.valor ?? porDefecto
 }

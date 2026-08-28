@@ -74,9 +74,11 @@ describe('la primera pantalla', () => {
     await listaDeOficinas()
 
     // Con la lista delante hay más controles —los filtros—, pero seguir
-    // usando la web no cuesta ni un dato: el único campo donde se escribe algo
-    // sigue siendo el código postal, y ninguno pide documento.
-    expect(camposDondeSeEscribe()).toEqual(['codigo-postal'])
+    // usando la web no cuesta ni un dato: el único sitio donde se escribe algo
+    // sigue siendo el código postal, y ninguno pide documento. Los filtros son
+    // de elegir entre lo que ya hay, y elegir no es entregar nada.
+    const donde = screen.getAllByRole('textbox').concat(screen.queryAllByRole('spinbutton'))
+    expect(donde).toEqual([campoDelCodigoPostal()])
     expect(screen.queryByLabelText(/dni|nif|documento/i)).toBe(null)
   })
 })
@@ -487,14 +489,3 @@ describe('la búsqueda en la dirección de la página', () => {
     expect(campoDelCodigoPostal().value).toBe('')
   })
 })
-
-/**
- * Los campos donde alguien escribe algo suyo, por su identificador.
- *
- * Los filtros son controles de elegir entre lo que ya hay —un deslizador,
- * radios, un desplegable—, y ninguno de ellos es un dato que se entregue.
- */
-function camposDondeSeEscribe(): string[] {
-  const escribibles = 'input:not([type="range"]):not([type="radio"]):not([type="checkbox"]), textarea'
-  return [...document.querySelectorAll(escribibles)].map((campo) => campo.id)
-}
