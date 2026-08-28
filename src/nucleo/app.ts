@@ -5,6 +5,7 @@ import { crearCatalogo, type Catalogo } from '@/sepe/catalogo'
 import { crearClienteSepe } from '@/sepe/cliente'
 import { crearCacheDeConsultas } from '@/sepe/consultas'
 import { crearFrenoCompartido } from '@/sepe/freno'
+import { crearBuscadorDelPrimerTramite, type BuscadorDelPrimerTramite } from '@/sepe/primer-tramite'
 import { CONFIGURACION_POR_DEFECTO, type Configuracion } from './configuracion'
 import type { Dependencias } from './dependencias'
 
@@ -25,6 +26,8 @@ export interface App {
   catalogo: Catalogo
   /** Código postal y trámite → oficinas de la zona con su primer hueco. */
   buscador: Buscador
+  /** Código postal a secas → las oficinas del primer trámite. Es lo que pide el hero. */
+  primerTramite: BuscadorDelPrimerTramite
 }
 
 /**
@@ -54,18 +57,24 @@ export function crearApp(dependencias: Dependencias, ajustes: Ajustes): App {
   // visitantes a la vez serían dos peticiones a la vez.
   const clienteSepe = crearClienteSepe(fetch, crearFrenoCompartido({ almacen, reloj }))
 
+  // El catálogo comparte cliente con el buscador, y por tanto freno: el ritmo
+  // es de todo el servicio, y las diez peticiones de un catálogo no pueden
+  // colarse por delante de las de una búsqueda que ya iba.
+  const catalogo = crearCatalogo({ clienteSepe, reloj })
+  const buscador = crearBuscador({
+    clienteSepe,
+    geocodificador,
+    reloj,
+    cache: crearCacheDeConsultas({ almacen, reloj, configuracion }),
+  })
+
   return {
     dependencias,
     geocodificador,
-    // El catálogo comparte cliente con el buscador, y por tanto freno: el
-    // ritmo es de todo el servicio, y las diez peticiones de un catálogo no
-    // pueden colarse por delante de las de una búsqueda que ya iba.
-    catalogo: crearCatalogo({ clienteSepe, reloj }),
-    buscador: crearBuscador({
-      clienteSepe,
-      geocodificador,
-      reloj,
-      cache: crearCacheDeConsultas({ almacen, reloj, configuracion }),
-    }),
+    catalogo,
+    buscador,
+    // No es una pieza más: es la composición de las dos de arriba, y se arma
+    // aquí para que no haya un Route Handler orquestando por su cuenta.
+    primerTramite: crearBuscadorDelPrimerTramite({ catalogo, buscador }),
   }
 }

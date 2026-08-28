@@ -73,6 +73,30 @@ eso los tests de la caché se escriben **sobre el parámetro** y no sobre el
 valor que tenga hoy: el día que la clave se ensanche a provincia, se cambia un
 valor y los tests siguen diciendo lo mismo.
 
+### Dos proyectos: `servidor` e `interfaz`
+
+`npm test` los corre los dos. El de `servidor` es todo lo de arriba, en Node.
+El de `interfaz` monta los `.tsx` con jsdom y `@testing-library/react`, y ahí
+el patrón es otro: se pinta la pantalla y se usa como la usaría una persona.
+
+```ts
+const persona = userEvent.setup()
+render(<Portada />)
+await persona.type(screen.getByLabelText('Código postal'), '08401')
+await persona.click(screen.getByRole('button', { name: /comprobar horas/i }))
+```
+
+Se busca por **rol y por nombre accesible** —`getByRole`, `getByLabelText`— y
+no por clase ni por `data-testid`. No es preferencia: la mitad de lo que este
+proyecto promete es que la lista se pueda recorrer con teclado y con lector de
+pantalla, y buscar así es lo que hace que un test falle cuando eso se rompe.
+
+Ahí la costura vuelve a ser el `fetch`, ahora el del navegador: la interfaz
+habla con un Route Handler, y lo que hay detrás ya se ejercita entrando por la
+ruta en el proyecto de `servidor`. Los dobles están en
+`pruebas/interfaz/sepe-en-el-navegador.ts` y toman sus tipos del servidor, para
+que una respuesta que cambie de forma no compile.
+
 ### Las dos únicas costuras
 
 1. **El `fetch`.** El cliente SEPE y el geocodificador lo reciben por
