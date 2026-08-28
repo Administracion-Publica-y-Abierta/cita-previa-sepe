@@ -1,6 +1,14 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { POST } from '@/app/api/busqueda/route'
+import { deNdjson } from '@/nucleo/ndjson'
+import type { EventoDeLaPasada } from '@/sepe/pasada'
+import { dejarCorrer } from './ayudantes/dejar-correr'
+import { geocodificadorNoConoce } from './ayudantes/geocodificador-falso'
+import { loQueSeEscribe } from './ayudantes/lo-que-se-escribe'
+import { montarApp } from './ayudantes/montar-app'
+import { portadaDelSepe, sepeSaturado } from './ayudantes/sepe-falso'
 
 /**
  * Las reglas de protección de datos no se prueban solo por comportamiento,
@@ -64,6 +72,55 @@ describe('los avisos de la aplicación no pueden llevar datos dentro', () => {
     }
   })
 })
+
+/**
+ * Un código postal que no sale en ninguna grabación ni en ningún fixture: si
+ * aparece escrito, ha llegado por la petición y por ningún otro sitio.
+ */
+const CODIGO_POSTAL = '28013'
+
+describe('lo que se registra va limpio de lo que llegó en la petición', () => {
+  it('una búsqueda con el geocodificador y el SEPE fallando no deja escrito el código postal', async () => {
+    // Las dos reglas se prueban a la vez porque el camino es el mismo: los dos
+    // servicios avisan al fallar, y los dos tienen el código postal a mano —el
+    // geocodificador lo lleva dentro de la URL—. Es el camino con más avisos y
+    // por tanto el que más ocasiones tiene de escribirlo.
+    const montaje = montarApp({
+      respuestas: [
+        portadaDelSepe(),
+        geocodificadorNoConoce(CODIGO_POSTAL),
+        sepeSaturado('cargaComboNivelesTramitesCPEntidad'),
+      ],
+    })
+
+    const escrito = await loQueSeEscribe(async () => {
+      const respuesta = await POST(peticionDeBusqueda(CODIGO_POSTAL))
+      await dejarCorrer(montaje.reloj, leerLaPasada(respuesta))
+    })
+
+    // Que hayan avisado los dos es parte de la comprobación: sin avisos esto
+    // pasaría solo y sin proteger de nada.
+    expect(escrito.length).toBeGreaterThanOrEqual(2)
+    for (const linea of escrito) expect(linea).not.toContain(CODIGO_POSTAL)
+  })
+})
+
+function peticionDeBusqueda(codigoPostal: string): Request {
+  return new Request('http://localhost/api/busqueda', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ cp: codigoPostal }),
+  })
+}
+
+/** Se lee el streaming entero: los avisos salen mientras la pasada avanza. */
+async function leerLaPasada(respuesta: Response): Promise<EventoDeLaPasada[]> {
+  const eventos: EventoDeLaPasada[] = []
+  if (!respuesta.body) return eventos
+
+  for await (const evento of deNdjson<EventoDeLaPasada>(respuesta.body)) eventos.push(evento)
+  return eventos
+}
 
 /** Los ficheros de código que cuelgan de un directorio, en cualquier nivel. */
 function ficherosDe(raiz: string): string[] {

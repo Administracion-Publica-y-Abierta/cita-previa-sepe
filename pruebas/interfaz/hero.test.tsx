@@ -1,15 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import Portada from '@/app/page'
-import {
-  BOTON,
-  buscar,
-  campoDelCodigoPostal,
-  CODIGO_POSTAL,
-  elResumen,
-  listaDeOficinas,
-  montarPortada,
-} from './la-portada'
+import { BOTON, buscar, campoDelCodigoPostal, CODIGO_POSTAL, elAvisoDelCampo, elResumen, listaDeOficinas, loQueImpide, montarPortada } from './la-portada'
 import {
   apiQueContesta,
   apiQueContestaCuandoSeLeDiga,
@@ -147,7 +139,7 @@ describe('el campo de código postal', () => {
     expect(campo.getAttribute('aria-invalid')).toBe('true')
     // El aviso está atado al campo: quien lo tenga enfocado lo oye sin tener
     // que ir a buscarlo por la página.
-    expect(campo.getAttribute('aria-describedby')).toContain(screen.getByRole('alert').id)
+    expect(campo.getAttribute('aria-describedby')).toContain(elAvisoDelCampo().id)
   })
 
   it('el aviso desaparece en cuanto el código postal pasa a ser válido', async () => {
@@ -307,7 +299,9 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
 
     await buscar(persona, '08402')
 
-    await waitFor(() => expect(elResumen().textContent).toMatch(/no (está )?respond/i))
+    // En la alerta y no en el titular: lo que ha pasado no es un resultado con
+    // cero huecos, es que no se ha podido preguntar.
+    await waitFor(() => expect(loQueImpide().textContent).toMatch(/no (está )?respond/i))
     expect(screen.queryByRole('list', { name: /oficinas/i })).toBe(null)
   })
 
@@ -319,8 +313,8 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
 
     // El freno no ha dado ficha. Quien lea «no hay citas» deja de mirar, y lo
     // que pasa es que ahora mismo hay mucha gente preguntando.
-    await waitFor(() => expect(elResumen().textContent).toMatch(/vuelve a probar en un momento/i))
-    expect(elResumen().textContent).not.toMatch(/no hay citas/i)
+    await waitFor(() => expect(loQueImpide().textContent).toMatch(/vuelve a probar en un momento/i))
+    expect(loQueImpide().textContent).not.toMatch(/no hay citas/i)
     expect(screen.queryByRole('list', { name: /oficinas/i })).toBe(null)
   })
 
@@ -332,8 +326,9 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
     await listaDeOficinas()
 
     // Enseñar un hueco guardado hace horas como si fuera de ahora es dar por
-    // vigente algo que puede llevar cogido desde entonces.
-    await waitFor(() => expect(elResumen().textContent).toMatch(/datos de hace un rato/i))
+    // vigente algo que puede llevar cogido desde entonces. Lo viejo se dice en
+    // la línea de la frescura, que es la que además dice de cuándo es.
+    await waitFor(() => expect(screen.getByText(/consultado a las/i).textContent).toMatch(/no son de ahora/i))
   })
 
   it('una respuesta reciente servida de la caché no se anuncia como vieja', async () => {
@@ -344,7 +339,7 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
     await listaDeOficinas()
 
     // Venir de la caché dentro de su TTL solo quiere decir que ha ido rápido.
-    expect(elResumen().textContent).not.toMatch(/hace un rato/i)
+    expect(screen.getByText(/consultado a las/i).textContent).not.toMatch(/no son de ahora/i)
   })
 
   it('un código postal que el servidor rechaza se enseña como aviso del campo', async () => {

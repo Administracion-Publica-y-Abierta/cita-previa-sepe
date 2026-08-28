@@ -50,6 +50,18 @@ const GRANOLLERS: Localizacion = {
 }
 
 /**
+ * El caso degradado del geocodificador: no reconoce el código postal y se cae
+ * al centro de la provincia. Hay resultados, pero los kilómetros son a ojo.
+ */
+export const CENTRO_DE_LA_PROVINCIA: Localizacion = {
+  lat: 41.7,
+  lng: 1.9,
+  municipio: null,
+  provincia: 'Barcelona',
+  precision: 'aproximada-provincial',
+}
+
+/**
  * Un grupo del SEPE de verdad, sacado de las capturas: es el trámite de nivel 2
  * del que cuelgan los consultables de 08401.
  */
@@ -88,18 +100,22 @@ export function oficina(parcial: Partial<Oficina> = {}): Oficina {
 }
 
 /**
- * Qué trámites hay en la zona y desde dónde se miden los kilómetros.
+ * Qué trámites hay en la zona, desde dónde se miden los kilómetros y de cuándo
+ * es la cola.
  *
  * El `consultadoEn` se puede mover porque el de la cola **no** es el de las
  * horas: la cola se guarda un día entero, así que un test tiene que poder
- * ponerla rancia y comprobar que los filtros de fecha no le hacen caso.
+ * ponerla rancia y comprobar que los filtros de fecha no le hacen caso. Y la
+ * localización se puede cambiar para el caso degradado del geocodificador, que
+ * es el que hace que los kilómetros sean a ojo.
  */
 export function cola(
   tramites: TramiteEnCola[],
   estado: EstadoDeLaCola = 'ok',
   consultadoEn: number = CONSULTADO_EN,
+  localizacion: Localizacion = GRANOLLERS,
 ): EventoDeLaPasada {
-  return { tipo: 'cola', estado, consultadoEn, localizacion: GRANOLLERS, tramites }
+  return { tipo: 'cola', estado, consultadoEn, localizacion, tramites }
 }
 
 /** Un trámite resuelto, con lo que haya salido de él. */
@@ -109,14 +125,17 @@ export function resuelto(
     estado: EstadoDeLaConsulta
     desdeCache: boolean
     caducada: boolean
+    /** Cuándo se le preguntó al SEPE. Distinto por trámite: cada uno se consulta a su hora. */
+    consultadoEn: number
     oficinas: Oficina[]
   }> = {},
 ): EventoDeLaPasada {
-  const { tramite, estado, desdeCache, caducada, oficinas } = {
+  const { tramite, estado, desdeCache, caducada, consultadoEn, oficinas } = {
     tramite: UN_TRAMITE,
     estado: 'ok' as EstadoDeLaConsulta,
     desdeCache: false,
     caducada: false,
+    consultadoEn: CONSULTADO_EN,
     oficinas: [oficina()],
     ...parcial,
   }
@@ -126,7 +145,7 @@ export function resuelto(
     idTramite: tramite.id,
     nombreTramite: tramite.nombre,
     canal: { id: 1, nombre: 'Presencial' },
-    consultadoEn: CONSULTADO_EN,
+    consultadoEn,
     desdeCache,
     caducada,
     estado,
@@ -144,10 +163,14 @@ export function consultando(tramite: Subtramite): EventoDeLaPasada {
  * cola, el aviso y el resultado.
  */
 export function pasadaDeUnTramite(
-  parcial: Parameters<typeof resuelto>[0] = {},
+  parcial: Parameters<typeof resuelto>[0] & { localizacion?: Localizacion } = {},
 ): EventoDeLaPasada[] {
   const tramite = parcial.tramite ?? UN_TRAMITE
-  return [cola([tramite]), consultando(tramite), resuelto(parcial)]
+  return [
+    cola([tramite], 'ok', CONSULTADO_EN, parcial.localizacion),
+    consultando(tramite),
+    resuelto(parcial),
+  ]
 }
 
 /** Una pasada que no llega a tener trámites que consultar. */
@@ -233,6 +256,24 @@ export function apiQueNoContesta(): ApiFalsa {
   return api
 }
 
+/**
+ * Una API a la que no se llega.
+ *
+ * El `fetch` del navegador no contesta con un estado cuando no hay red: revienta.
+ * Es el caso que hay que poder mirar —quedarse girando para siempre es la
+ * alternativa— y no se puede montar con una respuesta.
+ */
+export function apiSinConexion(): ApiFalsa {
+  const api: ApiFalsa = { peticiones: [] }
+
+  vi.stubGlobal('fetch', (entrada: RequestInfo | URL, opciones?: RequestInit) => {
+    apuntar(api, entrada, opciones)
+    return Promise.reject(new TypeError('Failed to fetch'))
+  })
+
+  return api
+}
+
 /** Una pasada que va soltando eventos cuando el test lo diga, y no antes. */
 export interface ApiQueVaContando extends ApiFalsa {
   /** Suelta un evento por el streaming que ya está abierto. */
@@ -240,8 +281,10 @@ export interface ApiQueVaContando extends ApiFalsa {
   /** Cierra la respuesta: la búsqueda ha terminado. */
   cerrar(): void
   /**
-   * El streaming se corta a la mitad. Es un caso real —la conexión se va— y el
-   * único que deja una pasada abierta sin terminarla.
+   * Corta el streaming a la mitad, como una conexión que se cae.
+   *
+   * No es lo mismo que `cerrar`: ahí la pasada terminó bien. Aquí quedaban
+   * trámites por llegar y ya no van a llegar.
    */
   romper(): void
 }
@@ -267,7 +310,7 @@ export function apiQueVaContando(): ApiQueVaContando {
       mando = null
     },
     romper() {
-      mando?.error(new Error('la conexión se ha ido'))
+      mando?.error(new TypeError('network error'))
       mando = null
     },
   }
