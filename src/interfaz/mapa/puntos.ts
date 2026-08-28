@@ -1,4 +1,5 @@
 import type { Coordenadas } from '@/localizacion/distancia'
+import type { Localizacion } from '@/localizacion/geocodificador'
 import type { Oficina } from '@/sepe/oficinas'
 
 /**
@@ -41,6 +42,53 @@ export function puntosDe(oficinas: Oficina[]): Punto[] {
 function estaEnAlgunSitio(oficina: Oficina): boolean {
   if (!Number.isFinite(oficina.lat) || !Number.isFinite(oficina.lng)) return false
   return oficina.lat !== 0 || oficina.lng !== 0
+}
+
+/** Lo que hace falta de un grupo para poder abrirlo. */
+export interface Grupo {
+  id: number
+  centro: [number, number]
+}
+
+/**
+ * El grupo que hay debajo del dedo, o `null` si eso no era un grupo.
+ *
+ * Lo que llega de MapLibre es una característica con propiedades sueltas, así
+ * que hay que comprobar de verdad lo que trae: un `cluster_id` que no sea un
+ * número o unas coordenadas que no sean dos números dejarían el mapa en un
+ * sitio imposible del que no se sabe volver.
+ */
+export function elGrupoDe(
+  caracteristica:
+    | { properties?: Record<string, unknown> | null; geometry?: { type: string; coordinates?: unknown } }
+    | undefined,
+): Grupo | null {
+  const id = caracteristica?.properties?.cluster_id
+  const centro = caracteristica?.geometry?.type === 'Point' ? caracteristica.geometry.coordinates : null
+  if (typeof id !== 'number' || !Array.isArray(centro)) return null
+
+  const [lng, lat] = centro
+  if (typeof lng !== 'number' || typeof lat !== 'number') return null
+
+  return { id, centro: [lng, lat] }
+}
+
+/** El punto de una oficina, o `null` si esa oficina no se dibuja. */
+export function elPuntoDe(puntos: Punto[], id: number | null): Punto | null {
+  return puntos.find((punto) => punto.id === id) ?? null
+}
+
+/**
+ * Dónde se marca el código postal buscado, o `null` si no se marca.
+ *
+ * Con una localización aproximada no se marca **nada**. El centroide de la
+ * provincia está a decenas de kilómetros de donde vive quien pregunta —lo dice
+ * el propio aviso de la pantalla—, y un punto en el mapa no se lee como «por
+ * aquí más o menos»: se lee como «aquí». Además estiraría el encuadre a escala
+ * provincial y dejaría las oficinas amontonadas en una esquina.
+ */
+export function dondeMarcarElCodigoPostal(localizacion: Localizacion | null): Coordenadas | null {
+  return localizacion?.precision === 'exacta' ? localizacion : null
 }
 
 /** Un punto en GeoJSON. Solo lo que se usa: MapLibre acepta más de lo que hace falta. */

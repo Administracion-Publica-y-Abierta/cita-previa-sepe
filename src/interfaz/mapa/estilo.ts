@@ -1,6 +1,6 @@
 import type { AddLayerObject } from 'maplibre-gl'
 import type { Coordenadas } from '@/localizacion/distancia'
-import type { OficinasEnElMapa } from './puntos'
+import { comoGeoJson, type OficinasEnElMapa, type Punto } from './puntos'
 
 /**
  * El mapa, descrito como datos.
@@ -17,9 +17,10 @@ import type { OficinasEnElMapa } from './puntos'
  * dar, ni cuota que se agote un lunes por la mañana, ni un proveedor de pago
  * del que dependa una web de servicio público.
  */
-export const BASEMAP = 'https://tiles.openfreemap.org/styles/bright'
+export const MAPA_DE_FONDO = 'https://tiles.openfreemap.org/styles/bright'
 
 export const FUENTE_OFICINAS = 'oficinas'
+export const FUENTE_RESALTADA = 'resaltada'
 export const FUENTE_CODIGO_POSTAL = 'codigo-postal'
 
 export const CAPA_GRUPOS = 'grupos'
@@ -150,13 +151,12 @@ export function capasDelMapa(): AddLayerObject[] {
     {
       id: CAPA_RESALTADA,
       type: 'circle',
-      source: FUENTE_OFICINAS,
-      filter: false,
+      source: FUENTE_RESALTADA,
       paint: {
-        'circle-color': 'rgba(0, 0, 0, 0)',
-        'circle-radius': 14,
+        'circle-color': ['case', ['get', 'conHueco'], VERDE_CON_HUECO, APAGADO_SIN_HUECO],
+        'circle-radius': 11,
         'circle-stroke-color': ANILLO_RESALTADA,
-        'circle-stroke-width': 3,
+        'circle-stroke-width': 4,
       },
     },
     {
@@ -173,13 +173,20 @@ export function capasDelMapa(): AddLayerObject[] {
   ]
 }
 
-/** El filtro que deja pasar solo la oficina resaltada. */
-export type FiltroDeResaltada = false | ['==', ['get', 'id'], number]
+export interface FuenteDeUnPunto {
+  type: 'geojson'
+  data: OficinasEnElMapa
+}
 
 /**
- * `false` cuando no hay ninguna, y no un identificador imposible: un
- * identificador imposible deja de serlo el día que el SEPE reutilice el número.
+ * La oficina señalada, en una fuente aparte y **sin agrupar**.
+ *
+ * Parece un rodeo y es lo contrario. Si el anillo saliera de la fuente de las
+ * oficinas, que sí agrupa, una oficina metida dentro de un grupo no existiría
+ * como punto suelto y pasar por su tarjeta no resaltaría nada, sin avisar. Con
+ * su propia fuente se dibuja siempre, esté o no su grupo abierto, y además se
+ * ve de qué color es sin tener que acercarse.
  */
-export function filtroDeResaltada(id: number | null): FiltroDeResaltada {
-  return id === null ? false : ['==', ['get', 'id'], id]
+export function fuenteDeLaResaltada(punto: Punto | null): FuenteDeUnPunto {
+  return { type: 'geojson', data: comoGeoJson(punto ? [punto] : []) }
 }

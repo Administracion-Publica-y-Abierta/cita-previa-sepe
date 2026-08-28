@@ -10,6 +10,15 @@ import { comoLlegar } from './mapa/como-llegar'
  * algo que la lista no dice, la lista dejaría de ser el equivalente completo
  * del mapa y quien no puede usarlo se quedaría con menos.
  */
+/**
+ * Esta ficha solo se pinta en el navegador —los resultados llegan de una
+ * consulta que hace el propio navegador—, pero un `navigator` que no exista
+ * tumbaría la página entera, y eso no lo puede provocar un enlace.
+ */
+function agenteDeUsuario(): string {
+  return typeof navigator === 'undefined' ? '' : navigator.userAgent
+}
+
 export function FichaDeOficina({ oficina }: { oficina: Oficina }) {
   return (
     <>
@@ -33,7 +42,7 @@ export function FichaDeOficina({ oficina }: { oficina: Oficina }) {
 
         {/* Se abre fuera porque quien pulsa esto se va a la aplicación de
             mapas: si se abriera aquí, volver le costaría perder la búsqueda. */}
-        <a className="underline" href={comoLlegar(oficina)} rel="noreferrer noopener" target="_blank">
+        <a className="underline" href={comoLlegar(oficina, agenteDeUsuario())} rel="noreferrer noopener" target="_blank">
           Cómo llegar
         </a>
       </p>
@@ -50,7 +59,7 @@ export function FichaDeOficina({ oficina }: { oficina: Oficina }) {
  * lo que se ve de un vistazo, y por eso el mapa nunca va solo.
  */
 function Hueco({ primerHueco }: { primerHueco: string | null }) {
-  if (!primerHueco) {
+  if (primerHueco === null) {
     // No es lo mismo que no existir: esta oficina atiende, pero de este
     // trámite no tiene hora ahora mismo.
     return <span className="opacity-70">Sin hueco ahora mismo</span>

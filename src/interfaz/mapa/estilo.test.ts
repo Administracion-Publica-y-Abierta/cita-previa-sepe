@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BASEMAP,
+  APAGADO_SIN_HUECO,
+  CAPA_CODIGO_POSTAL,
+  CAPA_GRUPOS,
+  CAPA_OFICINAS,
   CAPA_RESALTADA,
   capasDelMapa,
-  filtroDeResaltada,
+  fuenteDeLaResaltada,
   fuenteDeOficinas,
+  MAPA_DE_FONDO,
   VERDE_CON_HUECO,
-  APAGADO_SIN_HUECO,
 } from './estilo'
-import { comoGeoJson } from './puntos'
+import { comoGeoJson, type Punto } from './puntos'
 
 /**
  * El mapa se describe con datos —fuentes, capas, filtros— y es MapLibre quien
@@ -17,12 +20,12 @@ import { comoGeoJson } from './puntos'
  * comprobar que se le pide lo que se quería.
  */
 
-describe('el basemap', () => {
+describe('el mapa de fondo', () => {
   it('no lleva ninguna clave de API', () => {
     // Es la razón por la que se eligió: sin clave no hay tarjeta, ni cuota que
     // se agote un lunes, ni un proveedor del que dependa un servicio público.
-    expect(BASEMAP).toMatch(/^https:\/\//)
-    expect(BASEMAP).not.toMatch(/key|token|apikey/i)
+    expect(MAPA_DE_FONDO).toMatch(/^https:\/\//)
+    expect(MAPA_DE_FONDO).not.toMatch(/key|token|apikey/i)
   })
 })
 
@@ -51,7 +54,7 @@ describe('las capas', () => {
   })
 
   it('marcan el código postal buscado con algo que no es una oficina', () => {
-    const codigoPostal = porId('codigo-postal')
+    const codigoPostal = porId(CAPA_CODIGO_POSTAL)
 
     expect(codigoPostal).toBeTruthy()
     expect(JSON.stringify(codigoPostal)).not.toContain(VERDE_CON_HUECO)
@@ -64,19 +67,27 @@ describe('las capas', () => {
 })
 
 describe('la oficina resaltada', () => {
-  it('es la que dice la lista, y solo esa', () => {
-    expect(filtroDeResaltada(5079)).toEqual(['==', ['get', 'id'], 5079])
+  const punto: Punto = { id: 5079, lng: 2.289705, lat: 41.594542, conHueco: true }
+
+  it('se dibuja aunque su grupo esté sin abrir', () => {
+    // Sale de una fuente propia y **sin agrupar**. Si saliera de la de las
+    // oficinas, una oficina metida dentro de un grupo no existiría como punto
+    // suelto y pasar por su tarjeta no resaltaría nada, sin avisar.
+    const fuente = fuenteDeLaResaltada(punto)
+
+    expect(fuente.data.features).toHaveLength(1)
+    expect(fuente.data.features[0].id).toBe(5079)
+    expect(fuente).not.toHaveProperty('cluster')
   })
 
-  it('sin ninguna resaltada no resalta ninguna', () => {
-    // `false` y no un identificador imposible: un identificador imposible deja
-    // de serlo el día que el SEPE reutilice ese número.
-    expect(filtroDeResaltada(null)).toEqual(false)
+  it('sin ninguna señalada no se dibuja ninguna', () => {
+    expect(fuenteDeLaResaltada(null).data.features).toEqual([])
   })
 
-  it('se dibuja por encima de los puntos, o no se vería', () => {
+  it('se dibuja por encima de los puntos y de los grupos, o no se vería', () => {
     const ids = capasDelMapa().map((capa) => capa.id)
 
-    expect(ids.indexOf(CAPA_RESALTADA)).toBeGreaterThan(ids.indexOf('oficinas'))
+    expect(ids.indexOf(CAPA_RESALTADA)).toBeGreaterThan(ids.indexOf(CAPA_OFICINAS))
+    expect(ids.indexOf(CAPA_RESALTADA)).toBeGreaterThan(ids.indexOf(CAPA_GRUPOS))
   })
 })

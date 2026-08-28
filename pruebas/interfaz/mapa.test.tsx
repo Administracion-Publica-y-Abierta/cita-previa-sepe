@@ -1,7 +1,7 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
-import userEvent, { type UserEvent } from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import Portada from '@/app/page'
+import { screen, waitFor, within } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { buscar, listaDeOficinas, montarPortada } from './la-portada'
+import { pantalla } from './pantalla'
 import { apiQueContesta, oficina, respuesta } from './sepe-en-el-navegador'
 
 /**
@@ -15,24 +15,12 @@ import { apiQueContesta, oficina, respuesta } from './sepe-en-el-navegador'
  * `src/interfaz/mapa/`.
  */
 
-const CODIGO_POSTAL = 'Código postal'
-const BOTON = /comprobar horas/i
 const VER_EL_MAPA = /ver .*mapa/i
 const VOLVER = /volver a la lista/i
 
-function montarPortada(): UserEvent {
-  const persona = userEvent.setup()
-  render(<Portada />)
-  return persona
-}
-
-async function buscar(persona: UserEvent, codigoPostal: string): Promise<void> {
-  await persona.type(screen.getByLabelText(CODIGO_POSTAL), codigoPostal)
-  await persona.click(screen.getByRole('button', { name: BOTON }))
-}
-
-async function listaDeOficinas(): Promise<HTMLElement> {
-  return waitFor(() => screen.getByRole('list', { name: /oficinas/i }))
+/** La columna de la izquierda: el botón del mapa y la lista. */
+async function columnaDeLaLista(): Promise<HTMLElement> {
+  return (await listaDeOficinas()).parentElement as HTMLElement
 }
 
 const DOS_OFICINAS = respuesta({
@@ -40,10 +28,6 @@ const DOS_OFICINAS = respuesta({
     oficina({ id: 1, nombre: 'GRANOLLERS-PERIFERIA - SEPE', primerHueco: '2026-08-17T09:00:00' }),
     oficina({ id: 2, nombre: 'MOLLET DEL VALLES - SEPE', primerHueco: null }),
   ],
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 describe('el mapa y la lista, uno al lado del otro', () => {
@@ -107,6 +91,55 @@ describe('el mapa en una pantalla de móvil', () => {
     await persona.click(screen.getByRole('button', { name: VOLVER }))
     expect(screen.queryByRole('button', { name: VOLVER })).toBe(null)
     expect(within(await listaDeOficinas()).getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('mientras el mapa ocupa la pantalla, la lista de debajo no se cruza en el camino', async () => {
+    const persona = montarPortada()
+    apiQueContesta(DOS_OFICINAS)
+
+    await buscar(persona, '08402')
+    await listaDeOficinas()
+    await persona.click(screen.getByRole('button', { name: VER_EL_MAPA }))
+
+    // La lista sigue en la página, debajo del mapa y sin verse. Sin sacarla
+    // del paso, tabular desde el mapa cae en una lista invisible y quien
+    // navega con teclado o con lector de pantalla se pierde.
+    expect((await columnaDeLaLista()).hasAttribute('inert')).toBe(true)
+
+    await persona.click(screen.getByRole('button', { name: VOLVER }))
+    expect((await columnaDeLaLista()).hasAttribute('inert')).toBe(false)
+  })
+
+  it('Escape vuelve a la lista, que es lo que intenta todo el mundo', async () => {
+    const persona = montarPortada()
+    apiQueContesta(DOS_OFICINAS)
+
+    await buscar(persona, '08402')
+    await listaDeOficinas()
+    await persona.click(screen.getByRole('button', { name: VER_EL_MAPA }))
+
+    await persona.keyboard('{Escape}')
+
+    expect(screen.queryByRole('button', { name: VOLVER })).toBe(null)
+    expect((await columnaDeLaLista()).hasAttribute('inert')).toBe(false)
+  })
+})
+
+describe('el mapa en una pantalla de escritorio', () => {
+  it('está desde el principio, y la lista nunca se queda fuera del paso', async () => {
+    pantalla({ dosColumnas: true })
+    const persona = montarPortada()
+    apiQueContesta(DOS_OFICINAS)
+
+    await buscar(persona, '08402')
+    await listaDeOficinas()
+
+    // Aquí caben las dos columnas y se ven a la vez: nadie tiene que abrir
+    // nada, y sacar la lista del paso del teclado sería sacar del paso algo
+    // que está a la vista.
+    expect(screen.getByRole('region', { name: /mapa/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: VOLVER })).toBe(null)
+    expect((await columnaDeLaLista()).hasAttribute('inert')).toBe(false)
   })
 })
 

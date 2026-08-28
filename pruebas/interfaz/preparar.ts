@@ -1,23 +1,11 @@
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
+import { pantalla } from './pantalla'
 
-/**
- * jsdom no trae `matchMedia`, y la pantalla de resultados lo necesita para
- * saber si caben las dos columnas. Se pone aquí y contestando que **no** caben:
- * lo que se prueba es la pantalla estrecha, que es donde se va a usar esto y
- * donde el mapa y la lista tienen que convivir sin pelearse.
- */
-window.matchMedia = (consulta: string): MediaQueryList =>
-  ({
-    matches: false,
-    media: consulta,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  }) as MediaQueryList
+/** Se empieza siempre en un móvil. El que quiera escritorio lo dice. */
+beforeEach(() => {
+  pantalla({ dosColumnas: false })
+})
 
 /**
  * Cada test empieza con el DOM vacío y sin nada recordado del anterior.
@@ -30,4 +18,5 @@ afterEach(() => {
   cleanup()
   window.localStorage.clear()
   window.history.replaceState(null, '', '/')
+  vi.unstubAllGlobals()
 })

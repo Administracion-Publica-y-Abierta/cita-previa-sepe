@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { Localizacion } from '@/localizacion/geocodificador'
 import type { Oficina } from '@/sepe/oficinas'
 import { FichaDeOficina } from './ficha-de-oficina'
-import { ListaDeOficinas } from './lista-de-oficinas'
+import { idDeLaTarjeta, ListaDeOficinas } from './lista-de-oficinas'
 import { Mapa } from './mapa/mapa'
+import { dondeMarcarElCodigoPostal } from './mapa/puntos'
 
 /**
  * El resultado, mirado de las dos maneras a la vez.
@@ -51,9 +52,44 @@ export function Resultados({
   // está en el resultado.
   const laElegida = oficinas.find((oficina) => oficina.id === elegida) ?? null
 
+  // Señalar y elegir se pintan igual: la oficina cuya ficha está abierta tiene
+  // que verse en el mapa y en la lista, o al abrirla se pierde de vista cuál
+  // de todos los puntos era.
+  const marcada = senalada ?? elegida
+
+  /**
+   * Lo que señala el mapa se señala en la lista **y se trae a la vista**. Solo
+   * en este sentido: si al pasar por una tarjeta la lista se moviera sola, se
+   * escaparía de debajo del ratón de quien la está leyendo.
+   */
+  const senalarDesdeElMapa = useCallback((id: number | null) => {
+    setSenalada(id)
+    if (id !== null) document.getElementById(idDeLaTarjeta(id))?.scrollIntoView({ block: 'nearest' })
+  }, [])
+
+  // Escape cierra lo de encima: primero la ficha y después el mapa. Es lo que
+  // intenta todo el mundo antes de buscar el botón, y con el mapa a pantalla
+  // completa el botón puede estar debajo del teclado del móvil.
+  useEffect(() => {
+    if (!laElegida && !mapaAbierto) return
+
+    function alPulsar(evento: KeyboardEvent): void {
+      if (evento.key !== 'Escape') return
+      if (laElegida) setElegida(null)
+      else setMapaAbierto(false)
+    }
+
+    window.addEventListener('keydown', alPulsar)
+    return () => window.removeEventListener('keydown', alPulsar)
+  }, [laElegida, mapaAbierto])
+
   return (
     <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
-      <div className="flex flex-col gap-4">
+      {/* Con el mapa ocupando la pantalla, la lista está debajo y no se ve:
+          `inert` la saca del paso del teclado y del lector de pantalla, para
+          que tabular desde el mapa no caiga en una lista invisible. En
+          escritorio no se aplica nunca, porque ahí las dos se ven a la vez. */}
+      <div className="flex flex-col gap-4" inert={mapaAbierto && !enEscritorio}>
         {/* Solo en el móvil: en escritorio el mapa ya está a la vista y un
             botón para enseñar lo que se está viendo sobra. */}
         <button
@@ -64,7 +100,7 @@ export function Resultados({
           Ver las oficinas en el mapa
         </button>
 
-        <ListaDeOficinas alSenalar={setSenalada} oficinas={oficinas} senalada={senalada} />
+        <ListaDeOficinas alSenalar={setSenalada} oficinas={oficinas} senalada={marcada} />
       </div>
 
       <section
@@ -87,11 +123,11 @@ export function Resultados({
           {hayMapa && (
             <Mapa
               alElegir={setElegida}
-              alSenalar={setSenalada}
-              codigoPostal={localizacion}
+              alSenalar={senalarDesdeElMapa}
+              marcaDelCodigoPostal={dondeMarcarElCodigoPostal(localizacion)}
               oficinas={oficinas}
               pantallaCompleta={mapaAbierto}
-              senalada={senalada}
+              senalada={marcada}
             />
           )}
 
@@ -102,7 +138,7 @@ export function Resultados({
                 onClick={() => setElegida(null)}
                 type="button"
               >
-                Cerrar
+                Cerrar la ficha
               </button>
               <FichaDeOficina oficina={laElegida} />
             </div>

@@ -6,18 +6,18 @@ import type { GeoJSONSource, Map as MapaDeMapLibre } from 'maplibre-gl'
 import type { Coordenadas } from '@/localizacion/distancia'
 import type { Oficina } from '@/sepe/oficinas'
 import {
-  BASEMAP,
   CAPA_GRUPOS,
   CAPA_OFICINAS,
-  CAPA_RESALTADA,
   capasDelMapa,
-  filtroDeResaltada,
   FUENTE_CODIGO_POSTAL,
   FUENTE_OFICINAS,
+  FUENTE_RESALTADA,
+  fuenteDeLaResaltada,
   fuenteDeOficinas,
   fuenteDelCodigoPostal,
+  MAPA_DE_FONDO,
 } from './estilo'
-import { comoGeoJson, encuadreDe, puntosDe } from './puntos'
+import { comoGeoJson, elGrupoDe, elPuntoDe, encuadreDe, puntosDe, type Grupo } from './puntos'
 import { sePuedePintarUnMapa } from './webgl'
 
 /**
@@ -48,15 +48,15 @@ const ENCUADRE = { padding: 56, maxZoom: 14, duration: 0 }
 
 export function Mapa({
   oficinas,
-  codigoPostal,
+  marcaDelCodigoPostal,
   senalada,
   alSenalar,
   alElegir,
   pantallaCompleta,
 }: {
   oficinas: Oficina[]
-  /** Dónde cae el código postal buscado, para marcarlo. */
-  codigoPostal: Coordenadas | null
+  /** Dónde marcar el código postal buscado, o `null` si no se puede situar. */
+  marcaDelCodigoPostal: Coordenadas | null
   senalada: number | null
   alSenalar: (id: number | null) => void
   alElegir: (id: number | null) => void
@@ -77,7 +77,7 @@ export function Mapa({
   })
 
   /** Lo que había cuando se montó, que es con lo que nace encuadrado. */
-  const alNacer = useRef({ oficinas, codigoPostal })
+  const alNacer = useRef({ oficinas, marcaDelCodigoPostal })
 
   useEffect(() => {
     const donde = contenedor.current
@@ -102,11 +102,11 @@ export function Mapa({
       // de cada build.
       setWorkerUrl(WORKER)
 
-      const encuadre = encuadreDe(puntosDe(alNacer.current.oficinas), alNacer.current.codigoPostal)
+      const encuadre = encuadreDe(puntosDe(alNacer.current.oficinas), alNacer.current.marcaDelCodigoPostal)
 
       creado = new Map({
         container: donde,
-        style: BASEMAP,
+        style: MAPA_DE_FONDO,
         // Nace ya encuadrado sobre el resultado en vez de nacer sobre España y
         // viajar hasta él. No es un atajo estético: las teselas del país
         // entero pesan lo que pesan, nadie las va a mirar, y esto se abre con
@@ -126,6 +126,7 @@ export function Mapa({
       // mapa sin oficinas hasta que terminara de pintarse el fondo.
       creado.once('style.load', () => {
         creado?.addSource(FUENTE_OFICINAS, fuenteDeOficinas(comoGeoJson([])))
+        creado?.addSource(FUENTE_RESALTADA, fuenteDeLaResaltada(null))
         creado?.addSource(FUENTE_CODIGO_POSTAL, fuenteDelCodigoPostal(null))
         for (const capa of capasDelMapa()) creado?.addLayer(capa)
         setConCapas(true)
@@ -151,7 +152,7 @@ export function Mapa({
       })
 
       creado.on('click', CAPA_GRUPOS, (evento) => {
-        void abrirElGrupo(creado, evento.features?.[0])
+        void abrirElGrupo(creado, elGrupoDe(evento.features?.[0]))
       })
 
       creado.on('mouseenter', CAPA_OFICINAS, (evento) => {
@@ -181,18 +182,20 @@ export function Mapa({
 
     const puntos = puntosDe(oficinas)
     fuenteDe(mapa.current, FUENTE_OFICINAS)?.setData(comoGeoJson(puntos))
-    fuenteDe(mapa.current, FUENTE_CODIGO_POSTAL)?.setData(fuenteDelCodigoPostal(codigoPostal).data)
+    fuenteDe(mapa.current, FUENTE_CODIGO_POSTAL)?.setData(fuenteDelCodigoPostal(marcaDelCodigoPostal).data)
 
-    const encuadre = encuadreDe(puntos, codigoPostal)
+    const encuadre = encuadreDe(puntos, marcaDelCodigoPostal)
     if (encuadre) mapa.current.fitBounds(encuadre, ENCUADRE)
-  }, [oficinas, codigoPostal, conCapas])
+  }, [oficinas, marcaDelCodigoPostal, conCapas])
 
   // La otra mitad de la sincronía con la lista: lo que se señala allí se
   // resalta aquí. De aquí a la lista va por `alSenalar`.
   useEffect(() => {
-    if (!conCapas) return
-    mapa.current?.setFilter(CAPA_RESALTADA, filtroDeResaltada(senalada))
-  }, [senalada, conCapas])
+    if (!conCapas || !mapa.current) return
+    fuenteDe(mapa.current, FUENTE_RESALTADA)?.setData(
+      fuenteDeLaResaltada(elPuntoDe(puntosDe(oficinas), senalada)).data,
+    )
+  }, [senalada, oficinas, conCapas])
 
   // Al pasar a pantalla completa el contenedor cambia de tamaño sin que
   // MapLibre se entere, y el mapa se queda pintado del tamaño de antes.
@@ -212,16 +215,9 @@ function fuenteDe(mapa: MapaDeMapLibre, id: string): GeoJSONSource | null {
 }
 
 /** Pulsar un grupo se acerca hasta que se ve lo que tiene dentro. */
-async function abrirElGrupo(
-  mapa: MapaDeMapLibre | null,
-  grupo: { properties?: Record<string, unknown>; geometry?: { type: string; coordinates?: unknown } } | undefined,
-): Promise<void> {
-  const id = grupo?.properties?.cluster_id
-  const centro = grupo?.geometry?.type === 'Point' ? grupo.geometry.coordinates : null
-  if (!mapa || typeof id !== 'number' || !Array.isArray(centro)) return
+async function abrirElGrupo(mapa: MapaDeMapLibre | null, grupo: Grupo | null): Promise<void> {
+  const fuente = mapa && grupo ? fuenteDe(mapa, FUENTE_OFICINAS) : null
+  if (!mapa || !grupo || !fuente) return
 
-  const fuente = fuenteDe(mapa, FUENTE_OFICINAS)
-  if (!fuente) return
-
-  mapa.easeTo({ center: [centro[0] as number, centro[1] as number], zoom: await fuente.getClusterExpansionZoom(id) })
+  mapa.easeTo({ center: grupo.centro, zoom: await fuente.getClusterExpansionZoom(grupo.id) })
 }

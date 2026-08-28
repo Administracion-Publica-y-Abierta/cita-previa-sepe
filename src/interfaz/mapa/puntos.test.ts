@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Oficina } from '@/sepe/oficinas'
-import { comoGeoJson, encuadreDe, puntosDe } from './puntos'
+import { comoGeoJson, dondeMarcarElCodigoPostal, elGrupoDe, elPuntoDe, encuadreDe, puntosDe } from './puntos'
 
 /**
  * Lo que el mapa dibuja, sin mapa por medio.
@@ -93,5 +93,60 @@ describe('el encuadre del mapa', () => {
     // Devolver un encuadre inventado dejaría el mapa en mitad del Atlántico:
     // es preferible que quien lo llama no mueva la vista.
     expect(encuadreDe([], null)).toBeNull()
+  })
+})
+
+describe('la oficina señalada', () => {
+  it('es la que dice la lista', () => {
+    const puntos = puntosDe([oficina({ id: 1 }), oficina({ id: 2 })])
+
+    expect(elPuntoDe(puntos, 2)?.id).toBe(2)
+  })
+
+  it('sin ninguna señalada, o señalando una que no se dibuja, no hay punto', () => {
+    const puntos = puntosDe([oficina({ id: 1 })])
+
+    expect(elPuntoDe(puntos, null)).toBeNull()
+    // Una oficina virtual está en la lista y no en el mapa: señalar su tarjeta
+    // no puede resaltar un punto que no existe.
+    expect(elPuntoDe(puntos, 99)).toBeNull()
+  })
+})
+
+describe('la marca del código postal', () => {
+  const enGranollers = { lat: 41.6083, lng: 2.2875, municipio: 'Granollers', provincia: 'Barcelona' }
+
+  it('se pone donde cae, cuando se sabe dónde cae', () => {
+    expect(dondeMarcarElCodigoPostal({ ...enGranollers, precision: 'exacta' })).toMatchObject({
+      lat: 41.6083,
+      lng: 2.2875,
+    })
+  })
+
+  it('no se pone si solo se sabe la provincia', () => {
+    // El centroide provincial está a decenas de kilómetros, y un punto en un
+    // mapa no se lee como «por aquí más o menos»: se lee como «aquí». Además
+    // estiraría el encuadre a escala de provincia.
+    expect(
+      dondeMarcarElCodigoPostal({ ...enGranollers, municipio: null, precision: 'aproximada-provincial' }),
+    ).toBeNull()
+    expect(dondeMarcarElCodigoPostal(null)).toBeNull()
+  })
+})
+
+describe('el grupo que se pulsa', () => {
+  it('se lee de lo que manda el mapa', () => {
+    expect(
+      elGrupoDe({ properties: { cluster_id: 17, point_count: 3 }, geometry: { type: 'Point', coordinates: [2.1, 41.5] } }),
+    ).toEqual({ id: 17, centro: [2.1, 41.5] })
+  })
+
+  it('lo que no es un grupo no lo es', () => {
+    // Un `cluster_id` que no sea número o unas coordenadas que no sean dos
+    // números dejarían el mapa en un sitio imposible del que no se sabe volver.
+    expect(elGrupoDe(undefined)).toBeNull()
+    expect(elGrupoDe({ properties: { id: 5079 }, geometry: { type: 'Point', coordinates: [2.1, 41.5] } })).toBeNull()
+    expect(elGrupoDe({ properties: { cluster_id: 17 }, geometry: { type: 'Polygon' } })).toBeNull()
+    expect(elGrupoDe({ properties: { cluster_id: 17 }, geometry: { type: 'Point', coordinates: ['x', 'y'] } })).toBeNull()
   })
 })

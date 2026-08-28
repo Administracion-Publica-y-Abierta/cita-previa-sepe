@@ -18,7 +18,7 @@ export interface Destino {
 /** iPhone, iPad y Mac. Lo demás —Android, escritorio— va a Google Maps. */
 const DE_APPLE = /iPhone|iPad|iPod|Macintosh/i
 
-export function comoLlegar(destino: Destino, agente: string = agenteDeUsuario()): string {
+export function comoLlegar(destino: Destino, agente: string): string {
   // Coordenadas y no la dirección escrita: la que manda el SEPE no lleva ni
   // municipio ni provincia —«AVDA. MARIE CURIE, 25-27»—, y buscarla tal cual
   // manda a quien llega a la calle de ese nombre de otra ciudad.
@@ -30,9 +30,4 @@ export function comoLlegar(destino: Destino, agente: string = agenteDeUsuario())
   }
 
   return `https://www.google.com/maps/search/?api=1&query=${donde}`
-}
-
-/** En el servidor no hay navegador, y lo que se pinte allí se corrige al hidratar. */
-function agenteDeUsuario(): string {
-  return typeof navigator === 'undefined' ? '' : navigator.userAgent
 }

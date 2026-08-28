@@ -2,6 +2,17 @@ import type { Oficina } from '@/sepe/oficinas'
 import { FichaDeOficina } from './ficha-de-oficina'
 
 /**
+ * El identificador de la tarjeta de una oficina.
+ *
+ * Existe para poder traerla a la vista cuando se señala su punto en el mapa:
+ * con veinte oficinas, resaltar una tarjeta que está diez pantallas más abajo
+ * es resaltarla para nadie.
+ */
+export function idDeLaTarjeta(oficina: number): string {
+  return `oficina-${oficina}`
+}
+
+/**
  * Las oficinas, en una lista.
  *
  * Se construye desde el principio como **equivalente completo** del mapa y no
@@ -34,6 +45,7 @@ export function ListaDeOficinas({
               ? 'border-black/60 bg-black/[0.03] dark:border-white/60 dark:bg-white/[0.06]'
               : 'border-black/10 dark:border-white/15'
           }`}
+          id={idDeLaTarjeta(oficina.id)}
           key={oficina.id}
           // El foco cuenta igual que el ratón: sin esto, relacionar la lista
           // con el mapa sería solo para quien puede señalar. `onFocus` en React
