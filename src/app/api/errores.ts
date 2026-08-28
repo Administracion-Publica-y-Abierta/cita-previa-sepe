@@ -19,19 +19,32 @@ export const CODIGO_POSTAL_INVALIDO = {
 }
 
 /**
- * El esqueleto de las rutas que comen código postal: lo saca del cuerpo del
- * POST, se lo da a quien conteste y traduce el único error esperable.
+ * El código postal de una petición, y **nada de la URL**: el alojamiento
+ * registra la URL entera de cada petición solo por existir, así que lo que no
+ * se lee de ahí es lo que no puede acabar escrito.
  *
- * De la URL no se lee nada, ni la cadena de consulta: el alojamiento registra
- * la URL entera de cada petición solo por existir, así que lo que no se lee de
- * ahí es lo que no puede acabar escrito.
+ * Está aquí y no repetido en cada ruta porque las dos formas de contestar —una
+ * respuesta y un streaming— leen lo mismo, y dos copias de esto se separan sin
+ * que nadie lo note.
+ */
+export async function cuerpoDe<T extends { cp?: unknown }>(peticion: Request): Promise<T | null> {
+  return (await peticion.json().catch(() => null)) as T | null
+}
+
+/** El `cp` del cuerpo, o la cadena vacía, que no es un código postal válido. */
+export function codigoPostalDe(cuerpo: { cp?: unknown } | null): string {
+  return typeof cuerpo?.cp === 'string' ? cuerpo.cp : ''
+}
+
+/**
+ * El esqueleto de las rutas que contestan de una vez: saca el código postal del
+ * cuerpo del POST, se lo da a quien conteste y traduce el único error esperable.
  */
 export async function conCodigoPostal(
   peticion: Request,
   contestar: (codigoPostal: string) => Promise<unknown>,
 ): Promise<Response> {
-  const cuerpo = (await peticion.json().catch(() => null)) as { cp?: unknown } | null
-  const codigoPostal = typeof cuerpo?.cp === 'string' ? cuerpo.cp : ''
+  const codigoPostal = codigoPostalDe(await cuerpoDe(peticion))
 
   try {
     return Response.json(await contestar(codigoPostal))

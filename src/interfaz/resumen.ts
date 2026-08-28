@@ -1,5 +1,5 @@
 import type { EstadoDeLaCola } from '@/sepe/cola'
-import { cuantosFaltan, oficinasDe, type LoQueVaLlegando } from './lo-que-va-llegando'
+import { cuantosFaltan, type LoQueVaLlegando, type OficinaConSuTramite } from './lo-que-va-llegando'
 
 /**
  * Qué se le dice a quien pregunta en cada momento.
@@ -33,19 +33,24 @@ export function seCuentaAlgo(estado: LoQueVaLlegando): boolean {
 }
 
 /**
- * El trámite en el título mientras solo hay uno: la lista son las oficinas *de
- * algo*, y quien pregunta no ha elegido ese algo. En cuanto hay varios, el
- * nombre se dice en cada oficina —que es donde importa, porque el hueco es de
- * un trámite concreto— y aquí se cuenta cuántos se han mirado.
+ * El trámite en el título mientras solo ha contestado uno: la lista son las
+ * oficinas *de algo*, y quien pregunta no ha elegido ese algo. En cuanto hay
+ * varios, el nombre se dice en cada oficina —que es donde importa, porque el
+ * hueco es de un trámite concreto— y aquí se cuentan.
+ *
+ * Se cuentan **los que han contestado** y no los que se han intentado: un
+ * trámite del que el SEPE no dijo nada no es un resultado, y meterlo en la
+ * cuenta sería prometer en el título lo que la lista no tiene.
  */
 export function tituloDe(estado: LoQueVaLlegando): string {
-  const [primero] = estado.resueltos
-  if (estado.resueltos.length === 1 && primero) return `Resultados para «${primero.nombreTramite}»`
-  if (estado.resueltos.length > 1) return `Resultados de ${estado.resueltos.length} trámites`
+  const contestados = estado.resueltos.filter((resuelto) => resuelto.estado === 'ok')
+  const [primero] = contestados
+  if (contestados.length === 1 && primero) return `Resultados para «${primero.nombreTramite}»`
+  if (contestados.length > 1) return `Resultados de ${contestados.length} trámites`
   return 'Resultados'
 }
 
-export function resumenDe(estado: LoQueVaLlegando): string {
+export function resumenDe(estado: LoQueVaLlegando, oficinas: OficinaConSuTramite[]): string {
   switch (estado.fase) {
     case 'inicial':
     case 'rechazado':
@@ -54,14 +59,14 @@ export function resumenDe(estado: LoQueVaLlegando): string {
       // Lo que ya había llegado no se tira: son oficinas de verdad, y siguen en
       // la lista. Lo que se dice es que la pasada se quedó a medias.
       if (estado.resueltos.length === 0) return SIN_CONEXION
-      return `${resumenDeLasOficinas(estado)} La conexión se ha cortado antes de terminar: quedaban trámites por consultar.`
+      return `${resumenDeLasOficinas(estado, oficinas)} La conexión se ha cortado antes de terminar: quedaban trámites por consultar.`
     case 'buscando':
     case 'terminada':
-      return resumenDeLaPasada(estado)
+      return resumenDeLaPasada(estado, oficinas)
   }
 }
 
-function resumenDeLaPasada(estado: LoQueVaLlegando): string {
+function resumenDeLaPasada(estado: LoQueVaLlegando, oficinas: OficinaConSuTramite[]): string {
   // Lo primero es si se ha podido saber qué trámites hay: sin cola no hay nada
   // que resumir, y lo que ha pasado no es que no haya citas.
   if (estado.estadoDeLaCola && estado.estadoDeLaCola !== 'ok') return loQuePasa(estado.estadoDeLaCola)
@@ -71,7 +76,7 @@ function resumenDeLaPasada(estado: LoQueVaLlegando): string {
     return estado.fase === 'buscando' ? `${EMPEZANDO}${loQueSeConsulta(estado)}` : NI_UNO
   }
 
-  return `${resumenDeLasOficinas(estado)}${loQueSeConsulta(estado)}${loViejoQueEs(estado)}`
+  return `${resumenDeLasOficinas(estado, oficinas)}${loQueSeConsulta(estado)}${loQueQuedoSinConsultar(estado)}${loViejoQueEs(estado)}`
 }
 
 /**
@@ -115,9 +120,25 @@ function loQueQueda(faltan: number): string {
   return faltan === 1 ? 'Falta 1 trámite por consultar.' : `Faltan ${faltan} trámites por consultar.`
 }
 
-function resumenDeLasOficinas(estado: LoQueVaLlegando): string {
-  const oficinas = oficinasDe(estado)
+/**
+ * Una pasada que acaba dejándose trámites lo dice.
+ *
+ * Pasa cuando el servidor deja de avanzar y se corta la cadena de peticiones.
+ * Callarlo enseñaría «12 oficinas, 5 con hueco» como si fuera todo lo que hay,
+ * que es la misma mentira que no distinguir un SEPE caído de que no haya citas.
+ */
+function loQueQuedoSinConsultar(estado: LoQueVaLlegando): string {
+  if (estado.fase !== 'terminada') return ''
 
+  const sinConsultar = cuantosFaltan(estado)
+  if (sinConsultar === 0) return ''
+
+  return sinConsultar === 1
+    ? ' Ha quedado 1 trámite sin consultar: vuelve a probar para verlo.'
+    : ` Han quedado ${sinConsultar} trámites sin consultar: vuelve a probar para verlos.`
+}
+
+function resumenDeLasOficinas(estado: LoQueVaLlegando, oficinas: OficinaConSuTramite[]): string {
   if (oficinas.length === 0) {
     // Ninguna oficina y algún trámite que no salió: lo que hay que contar es
     // eso. Decir «0 oficinas» de algo que no se ha podido preguntar es

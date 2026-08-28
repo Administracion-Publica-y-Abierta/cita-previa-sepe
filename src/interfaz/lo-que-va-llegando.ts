@@ -18,13 +18,19 @@ import type { EventoDeLaPasada } from '@/sepe/pasada'
 export type TramiteResuelto = Extract<EventoDeLaPasada, { tipo: 'tramite' }>
 
 /**
- * En qué punto está la búsqueda. `terminada` no quiere decir que haya salido
- * bien: quiere decir que ya no va a llegar nada más.
+ * Cómo acaba una búsqueda que ha llegado al final. `terminada` no quiere decir
+ * que haya salido bien: quiere decir que ya no va a llegar nada más.
  */
-export type FaseDeLaBusqueda = 'inicial' | 'buscando' | 'terminada' | 'rechazado' | 'sin-conexion'
+export type ComoAcaba = 'terminada' | 'rechazado' | 'sin-conexion'
 
-/** Cómo ha acabado una búsqueda. `abandonada` es que se pidió otra por encima. */
-export type FinDeLaBusqueda = 'terminada' | 'rechazado' | 'sin-conexion' | 'abandonada'
+/** En qué punto está la búsqueda: lo de antes de acabar, y cómo acabó. */
+export type FaseDeLaBusqueda = 'inicial' | 'buscando' | ComoAcaba
+
+/**
+ * Cómo ha acabado, desde el transporte. `abandonada` es que se pidió otra por
+ * encima, y por eso no es una fase: no se pinta, la pinta la nueva.
+ */
+export type FinDeLaBusqueda = ComoAcaba | 'abandonada'
 
 export interface LoQueVaLlegando {
   fase: FaseDeLaBusqueda
@@ -59,8 +65,18 @@ export function empezando(busqueda: number): LoQueVaLlegando {
   return { ...NADA_TODAVIA, fase: 'buscando', busqueda }
 }
 
+/**
+ * El trámite de un evento.
+ *
+ * El identificador y el nombre viajan sueltos por el streaming porque esa es la
+ * forma del evento que fija el issue; aquí vuelven a ser lo que son.
+ */
+function tramiteDe(evento: { idTramite: number; nombreTramite: string }): Subtramite {
+  return { id: evento.idTramite, nombre: evento.nombreTramite }
+}
+
 /** Lo de antes más lo que acaba de llegar. */
-export function con(estado: LoQueVaLlegando, evento: EventoDeLaPasada): LoQueVaLlegando {
+export function sumando(estado: LoQueVaLlegando, evento: EventoDeLaPasada): LoQueVaLlegando {
   switch (evento.tipo) {
     case 'cola':
       return {
@@ -70,7 +86,7 @@ export function con(estado: LoQueVaLlegando, evento: EventoDeLaPasada): LoQueVaL
         cola: evento.tramites,
       }
     case 'consultando':
-      return { ...estado, consultando: { id: evento.idTramite, nombre: evento.nombreTramite } }
+      return { ...estado, consultando: tramiteDe(evento) }
     case 'tramite':
       return { ...estado, consultando: null, resueltos: [...estado.resueltos, evento] }
     // Lo que falta se lo queda el transporte, que es quien vuelve a pedirlo.
@@ -80,7 +96,7 @@ export function con(estado: LoQueVaLlegando, evento: EventoDeLaPasada): LoQueVaL
   }
 }
 
-export function acabada(estado: LoQueVaLlegando, fin: FaseDeLaBusqueda): LoQueVaLlegando {
+export function acabada(estado: LoQueVaLlegando, fin: ComoAcaba): LoQueVaLlegando {
   return { ...estado, fase: fin, consultando: null }
 }
 
@@ -98,6 +114,15 @@ export function cuantosFaltan(estado: LoQueVaLlegando): number {
  */
 export interface OficinaConSuTramite extends Oficina {
   tramite: Subtramite
+  /**
+   * Cuántos trámites **más** tienen hueco en esta oficina.
+   *
+   * Se enseña porque enseñar solo el más temprano sin decirlo sería dejar
+   * creer que en esa oficina solo se atiende eso. Elegir cuál se mira es el
+   * filtro de trámites, que es el issue #10; hasta entonces, al menos se dice
+   * que hay más.
+   */
+  otrosConHueco: number
 }
 
 /**
@@ -112,18 +137,24 @@ export interface OficinaConSuTramite extends Oficina {
  */
 export function oficinasDe({ resueltos }: LoQueVaLlegando): OficinaConSuTramite[] {
   const porOficina = new Map<number, OficinaConSuTramite>()
+  /** Cuántos trámites tienen hueco en cada oficina, para poder decir que hay más. */
+  const conHueco = new Map<number, number>()
 
   for (const resuelto of resueltos) {
-    const tramite = { id: resuelto.idTramite, nombre: resuelto.nombreTramite }
+    const tramite = tramiteDe(resuelto)
     for (const oficina of resuelto.oficinas) {
+      if (oficina.primerHueco !== null) conHueco.set(oficina.id, (conHueco.get(oficina.id) ?? 0) + 1)
+
       const anterior = porOficina.get(oficina.id)
       if (!anterior || masTemprano(oficina.primerHueco, anterior.primerHueco)) {
-        porOficina.set(oficina.id, { ...oficina, tramite })
+        porOficina.set(oficina.id, { ...oficina, tramite, otrosConHueco: 0 })
       }
     }
   }
 
-  return [...porOficina.values()].sort((una, otra) => una.km - otra.km)
+  return [...porOficina.values()]
+    .map((oficina) => ({ ...oficina, otrosConHueco: Math.max(0, (conHueco.get(oficina.id) ?? 0) - 1) }))
+    .sort((una, otra) => una.km - otra.km)
 }
 
 /**

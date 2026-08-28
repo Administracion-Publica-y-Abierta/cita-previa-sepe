@@ -12,10 +12,10 @@ import {
 import { avisoDe, DIGITOS, soloDigitos } from './codigo-postal'
 import {
   acabada,
-  con,
   empezando,
   NADA_TODAVIA,
   oficinasDe,
+  sumando,
   type LoQueVaLlegando,
 } from './lo-que-va-llegando'
 import {
@@ -119,7 +119,7 @@ export function Hero() {
     void seguirLaPasada(
       codigoPostal,
       (evento) => {
-        if (esLaBuena()) setLlegando((antes) => con(antes ?? empezando(numero), evento))
+        if (esLaBuena()) setLlegando((antes) => sumando(antes ?? empezando(numero), evento))
       },
       mando.signal,
     ).then((fin) => {
@@ -257,7 +257,7 @@ export function Hero() {
           anunciar.
         */}
         <p className="text-lg" role="status">
-          {resumenDe(estado)}
+          {resumenDe(estado, oficinas)}
         </p>
 
         {/* En cuanto hay una oficina se enseña, sin esperar a que termine la

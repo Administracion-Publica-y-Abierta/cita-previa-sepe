@@ -143,6 +143,31 @@ describe('la búsqueda que va llegando', () => {
     const fila = filas(await listaDeOficinas())[0]
     expect(fila.textContent).toMatch(/17 de agosto de 2026/)
     expect(fila.textContent).toContain('Subsidio por desempleo')
+    // Y que ahí se atiende algo más: enseñar solo la hora más temprana sin
+    // decirlo dejaría creer que esa oficina solo hace ese trámite.
+    expect(fila.textContent).toMatch(/también tiene hueco para otro trámite/i)
+  })
+
+  it('el título cuenta los trámites que contestaron, no los que se intentaron', async () => {
+    const persona = montarPortada()
+    const api = apiQueVaContando()
+
+    await buscar(persona, '08402')
+    await waitFor(() => expect(api.peticiones).toHaveLength(1))
+
+    api.contar(cola([PRESTACION, SUBSIDIO, CERTIFICADO]))
+    api.contar(resuelto({ tramite: PRESTACION, oficinas: [oficina({ id: 1 })] }))
+    api.contar(resuelto({ tramite: SUBSIDIO, estado: 'sepe-no-responde', oficinas: [] }))
+    api.contar(resuelto({ tramite: CERTIFICADO, estado: 'sin-agenda', oficinas: [] }))
+    api.cerrar()
+
+    // «Resultados de 3 trámites» con dos que no contestaron sería prometer en
+    // el título lo que la lista no tiene.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+        'Resultados para «Prestación contributiva»',
+      ),
+    )
   })
 })
 
@@ -181,9 +206,31 @@ describe('cuando la pasada no cabe en una respuesta', () => {
 
     await buscar(persona, '08402')
 
-    // Mejor una lista incompleta que una cadena de peticiones al SEPE que no
-    // lleva a ninguna parte.
-    await waitFor(() => expect(screen.getByRole('status').textContent).not.toMatch(/faltan/i))
+    // Mejor no consultar nada que una cadena de peticiones al SEPE que no lleva
+    // a ninguna parte. Pero se dice, y no se cuenta como que no hay citas.
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/ningún trámite/i))
+    expect(screen.getByRole('status').textContent).not.toMatch(/no hay citas/i)
     expect(api.peticiones.length).toBeLessThanOrEqual(2)
+  })
+
+  it('lo que se quedó sin consultar se dice, en vez de enseñar lo traído como si fuera todo', async () => {
+    const persona = montarPortada()
+    apiQueContestaPorTurnos([
+      [
+        cola([PRESTACION, SUBSIDIO, CERTIFICADO]),
+        resuelto({ tramite: PRESTACION, oficinas: [oficina({ id: 1 })] }),
+        pendientes([SUBSIDIO, CERTIFICADO]),
+      ],
+      // La segunda invocación no avanza: se corta ahí.
+      [cola([PRESTACION, SUBSIDIO, CERTIFICADO]), pendientes([SUBSIDIO, CERTIFICADO])],
+    ])
+
+    await buscar(persona, '08402')
+
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toMatch(/han quedado 2 trámites sin consultar/i),
+    )
+    // Y lo que sí llegó se sigue contando: no se tira nada.
+    expect(screen.getByRole('status').textContent).toMatch(/1 oficina/i)
   })
 })

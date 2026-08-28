@@ -70,9 +70,29 @@ function Hueco({ oficina }: { oficina: OficinaConSuTramite }) {
   }
 
   return (
-    <span className="font-medium text-green-800 dark:text-green-300">
-      Con hueco para «{oficina.tramite.nombre}»:{' '}
-      <time dateTime={oficina.primerHueco}>{enFechaYHora(oficina.primerHueco)}</time>
+    <>
+      <span className="font-medium text-green-800 dark:text-green-300">
+        Con hueco para «{oficina.tramite.nombre}»:{' '}
+        <time dateTime={oficina.primerHueco}>{enFechaYHora(oficina.primerHueco)}</time>
+      </span>
+      <OtrosTramites cuantos={oficina.otrosConHueco} />
+    </>
+  )
+}
+
+/**
+ * Que esta oficina atiende más cosas.
+ *
+ * Se enseña la hora más temprana de todas, y decir solo esa dejaría creer que
+ * en esta oficina no se atiende nada más. Elegir cuál se mira es el filtro de
+ * trámites, que es el issue #10; hasta entonces, al menos se dice que hay más.
+ */
+function OtrosTramites({ cuantos }: { cuantos: number }) {
+  if (cuantos === 0) return null
+
+  return (
+    <span className="opacity-70">
+      {cuantos === 1 ? ' También tiene hueco para otro trámite.' : ` También tiene hueco para otros ${cuantos} trámites.`}
     </span>
   )
 }

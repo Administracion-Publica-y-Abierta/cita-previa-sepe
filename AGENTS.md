@@ -148,11 +148,13 @@ ruta en el proyecto de `servidor`. Los dobles están en
 `pruebas/interfaz/sepe-en-el-navegador.ts` y toman sus tipos del servidor, para
 que una respuesta que cambie de forma no compile.
 
-Como la búsqueda llega a trozos, ahí hay dos formas de contestar: la de golpe
-—`apiQueContesta(pasadaDeUnTramite())`, que es la de casi todos los tests— y
-`apiQueVaContando()`, que suelta un evento cuando el test lo dice. La segunda
+Como la búsqueda llega a trozos, ahí hay tres formas de contestar:
+`apiQueContesta(pasadaDeUnTramite())` suelta la pasada de golpe y es la de casi
+todos los tests; `apiQueVaContando()` suelta un evento cuando el test lo dice, y
 es la única forma de mirar la pantalla **a mitad** de la pasada, que es donde
-vive la mitad de lo que promete esta versión.
+vive la mitad de lo que promete esta versión; y `apiQueContestaPorTurnos()`
+contesta una cosa distinta a cada petición, que es como se prueba que una pasada
+que no cabe en una invocación se continúa en la siguiente.
 
 ### Las dos únicas costuras
 

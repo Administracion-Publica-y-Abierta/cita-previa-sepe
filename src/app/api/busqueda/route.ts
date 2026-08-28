@@ -1,7 +1,7 @@
 import { CodigoPostalInvalido, exigirProvincia } from '@/localizacion/geocodificador'
 import { comoNdjson } from '@/nucleo/ndjson'
 import { appDeProduccion } from '@/nucleo/app-de-produccion'
-import { CODIGO_POSTAL_INVALIDO } from '../errores'
+import { CODIGO_POSTAL_INVALIDO, codigoPostalDe, cuerpoDe } from '../errores'
 
 /**
  * `POST /api/busqueda` con `{"cp": "08401"}` → las oficinas de los trámites de
@@ -33,12 +33,13 @@ export const maxDuration = 60
 
 interface CuerpoDeLaPeticion {
   cp?: unknown
+  /** Los identificadores que faltan, cuando esto continúa una pasada. */
   tramites?: unknown
 }
 
 export async function POST(peticion: Request): Promise<Response> {
-  const cuerpo = (await peticion.json().catch(() => null)) as CuerpoDeLaPeticion | null
-  const codigoPostal = typeof cuerpo?.cp === 'string' ? cuerpo.cp : ''
+  const cuerpo = await cuerpoDe<CuerpoDeLaPeticion>(peticion)
+  const codigoPostal = codigoPostalDe(cuerpo)
 
   // Se comprueba aquí y no dentro del generador porque una vez empezada la
   // respuesta ya no se puede contestar 400: la cabecera se ha ido. Es la misma
