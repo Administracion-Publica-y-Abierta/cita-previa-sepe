@@ -40,6 +40,13 @@ export interface LoQueVaLlegando {
    */
   busqueda: number
   localizacion: Localizacion | null
+  /**
+   * Cuándo se hizo esta búsqueda, que es desde donde cuentan «hoy», «esta
+   * semana» y «este mes». Es el instante del servidor y no el del navegador a
+   * propósito: es el mismo con el que el SEPE contestó las horas que se están
+   * mirando. `null` mientras no ha llegado la cola.
+   */
+  consultadoEn: number | null
   /** Cómo ha ido descubrir qué trámites hay en la zona. `null` mientras no se sabe. */
   estadoDeLaCola: EstadoDeLaCola | null
   /** Todos los trámites de la zona, en el orden del SEPE. */
@@ -54,6 +61,7 @@ export const NADA_TODAVIA: LoQueVaLlegando = {
   fase: 'inicial',
   busqueda: 0,
   localizacion: null,
+  consultadoEn: null,
   estadoDeLaCola: null,
   cola: [],
   consultando: null,
@@ -82,6 +90,7 @@ export function sumando(estado: LoQueVaLlegando, evento: EventoDeLaPasada): LoQu
       return {
         ...estado,
         localizacion: evento.localizacion,
+        consultadoEn: evento.consultadoEn,
         estadoDeLaCola: evento.estado,
         cola: evento.tramites,
       }

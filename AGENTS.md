@@ -75,6 +75,44 @@ negocia— y eso no lo mira nadie ni lo aguanta una función serverless. Por eso
   detrás son oficinas de la misma zona, y mover la vista con cada uno le
   quitaría el mapa de las manos a quien lo está mirando mientras el resto llega.
 
+## Los filtros no le preguntan nada al SEPE
+
+Sobre la lista que ya ha llegado se filtra por distancia, por franja y por
+fecha, y se ordena. Todo ello son **funciones puras** en `src/interfaz/
+filtros.ts`, y por eso responden al instante y no cuestan ni una petición: lo
+caro —salir al SEPE— ya se pagó. `filtros-de-la-lista.tsx` es solo los controles.
+
+- **La franja es la del primer hueco de cada oficina, no su agenda.** El
+  desglose de días y horas del SEPE (`calendarioServicio`) exige el parámetro
+  `documento`, y esta fase no pide DNI. La pantalla lo dice donde está el
+  control, y no como letra pequeña: dejar creer que se ven todos los huecos de
+  una oficina es la misma clase de mentira que contar un SEPE caído como «no
+  hay citas».
+- **El tope del control de distancia no es un radio de cien kilómetros: es no
+  filtrar.** Si fuera un radio, una zona rural cuya oficina más cercana está a
+  ciento veinte se quedaría sin lista y sin saber por qué.
+- **«Esta semana» son siete días y lo dice la propia opción.** Una semana
+  natural que acabe mañana convierte el filtro en algo que casi nunca deja
+  nada, y quien lo lee no tendría cómo saber por qué.
+- **Cuando no queda nada se dice qué filtro lo tapa, y solo si quitarlo basta.**
+  `quienLasTapa` devuelve los que, **quitados ellos solos**, devuelven algún
+  resultado. Cuando harían falta dos no se señala a ninguno: ofrecer quitar uno
+  sería mandar a alguien a pulsar un botón que lo deja donde estaba.
+- **El «hoy» es el de la búsqueda, no el del navegador.** La referencia es el
+  `consultadoEn` que trae la cola, que es el instante con el que el SEPE
+  contestó esas horas. Así una pestaña abierta desde ayer no cambia de opinión
+  sola, y los tests no dependen de la hora a la que se ejecuten.
+- **Los filtros van en el fragmento, con el código postal y por lo mismo.** Una
+  búsqueda ya filtrada se comparte tal cual sin que el alojamiento registre de
+  dónde es quien la abre. Solo se escribe lo que se ha tocado, y con
+  `replaceState`: mover el deslizador dejaría noventa y nueve paradas en el
+  historial.
+
+Y una consecuencia en los tests: la pantalla tiene ahora **dos regiones vivas**
+—el resumen de la búsqueda y el contador de lo que dejan los filtros—, así que
+el resumen se pide por su nombre con el ayudante `elResumen()` y no con
+`getByRole('status')` a secas.
+
 ## El patrón de test: `montarApp()`
 
 **Todo test empieza montando la aplicación con un `fetch` y un reloj falsos, en

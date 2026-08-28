@@ -10,6 +10,8 @@ import {
   type FormEvent,
 } from 'react'
 import { avisoDe, DIGITOS, soloDigitos } from './codigo-postal'
+import { aplicando, type Filtros } from './filtros'
+import { FiltrosDeLaLista } from './filtros-de-la-lista'
 import {
   acabada,
   empezando,
@@ -20,8 +22,10 @@ import {
 } from './lo-que-va-llegando'
 import {
   codigoPostalDeLaDireccion,
+  filtrosDeLaDireccion,
   ponerEnLaDireccion,
   recordarCodigoPostal,
+  SIN_FILTROS_EN_EL_SERVIDOR,
   ultimoCodigoPostal,
 } from './lo-que-recuerda-el-navegador'
 import { seguirLaPasada } from './pasada'
@@ -77,18 +81,36 @@ export function Hero() {
   // salir ya relleno, sin parpadear vacío primero.
   const compartido = useSyncExternalStore(SIN_CAMBIOS, codigoPostalDeLaDireccion, EN_EL_SERVIDOR)
   const propuesto = useSyncExternalStore(SIN_CAMBIOS, ultimoCodigoPostal, EN_EL_SERVIDOR)
+  // Los filtros del enlace, por lo mismo que el código postal: quien abre una
+  // búsqueda compartida tiene que ver la lista **ya filtrada**, y no la entera
+  // encogiéndose después.
+  const delEnlace = useSyncExternalStore(SIN_CAMBIOS, filtrosDeLaDireccion, SIN_FILTROS_EN_EL_SERVIDOR)
 
   /** Lo tecleado, o `null` mientras no se haya tecleado nada. */
   const [escrito, setEscrito] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   /** Lo que va llegando de la última búsqueda, o `null` si no se ha lanzado ninguna. */
   const [llegando, setLlegando] = useState<LoQueVaLlegando | null>(null)
+  /** Los filtros tocados a mano, o `null` mientras valgan los del enlace. */
+  const [tocados, setTocados] = useState<Filtros | null>(null)
+  /**
+   * El código postal de la búsqueda que se está mirando, que no siempre es el
+   * del campo: al filtrar hay que reescribir la dirección, y escribir ahí lo
+   * que alguien esté tecleando cambiaría el enlace a una búsqueda que no se ha
+   * hecho.
+   *
+   * En una referencia y no en un estado porque no se pinta: solo lo lee el
+   * manejador que reescribe la dirección al mover un filtro.
+   */
+  const buscado = useRef('')
 
   // El `??` de fuera y no `||`: borrar el campo del todo es teclear, y
   // entonces tiene que quedarse vacío en vez de volver a proponer lo de antes.
   // Dentro sí es `||`, porque los dos son cadenas y se busca la primera con
   // algo dentro.
   const codigoPostal = escrito ?? (compartido || propuesto)
+
+  const filtros = tocados ?? delEnlace
 
   // Si el enlace traía búsqueda y todavía no ha llegado nada, es que se está
   // buscando: la consulta sale en el mismo pintado, desde el efecto de abajo.
@@ -114,6 +136,7 @@ export function Hero() {
 
     const numero = (ultimaBusqueda.current += 1)
     const esLaBuena = () => numero === ultimaBusqueda.current
+    buscado.current = codigoPostal
     setLlegando(empezando(numero))
 
     void seguirLaPasada(
@@ -175,7 +198,7 @@ export function Hero() {
     }
 
     recordarCodigoPostal(codigoPostal)
-    ponerEnLaDireccion(codigoPostal)
+    ponerEnLaDireccion(codigoPostal, filtros)
 
     setAviso(null)
     buscarOficinas(codigoPostal)
@@ -186,6 +209,29 @@ export function Hero() {
   // teclea en el campo es hacerle rehacer sus puntos por nada.
   const oficinas = useMemo(() => oficinasDe(estado), [estado])
   const hayTitulo = seCuentaAlgo(estado)
+
+  // Desde cuándo cuentan «hoy», «esta semana» y «este mes». El instante de la
+  // búsqueda y no el de ahora: es el mismo con el que el SEPE contestó estas
+  // horas, y así una pestaña abierta desde ayer no cambia de opinión sola.
+  // Llega con la cola, o sea antes que cualquier oficina: mientras es `null` no
+  // hay nada que filtrar.
+  const referencia = estado.consultadoEn
+
+  // Filtrar y ordenar es una función pura sobre lo que ya ha llegado: ni una
+  // petición. Se recuerda por lo mismo que las oficinas —el mapa rehace sus
+  // puntos con cada lista nueva—, y aquí además cambia con cada tecla del
+  // campo de código postal.
+  const visibles = useMemo(
+    () => (referencia === null ? oficinas : aplicando(oficinas, filtros, referencia)),
+    [oficinas, filtros, referencia],
+  )
+
+  // Los filtros se escriben en la dirección según se tocan, para que el enlace
+  // que hay en la barra sea siempre el de lo que se está viendo.
+  function cambiarFiltros(nuevos: Filtros): void {
+    setTocados(nuevos)
+    if (buscado.current) ponerEnLaDireccion(buscado.current, nuevos)
+  }
 
   return (
     <>
@@ -255,8 +301,12 @@ export function Hero() {
           Y está siempre en el árbol, aunque esté vacía: una región viva que
           nace ya con texto dentro es la que algunos lectores no llegan a
           anunciar.
+
+          Lleva nombre porque desde los filtros hay una segunda región viva —el
+          contador de lo que queda—, y dos regiones sin nombre son dos avisos
+          que no se sabe de qué son.
         */}
-        <p className="text-lg" role="status">
+        <p aria-label="Resumen de la búsqueda" className="text-lg" role="status">
           {resumenDe(estado, oficinas)}
         </p>
 
@@ -271,11 +321,30 @@ export function Hero() {
                 centro de {estado.localizacion.provincia} y pueden fallar por decenas de kilómetros.
               </p>
             )}
-            <Resultados
-              busqueda={estado.busqueda}
-              localizacion={estado.localizacion}
-              oficinas={oficinas}
-            />
+
+            {/* El panel se pinta con **todas** las que han llegado y no con las
+                que quedan: el contador cuenta sobre el total, y cuando los
+                filtros dejan la lista a cero es justo cuando más falta hace
+                que siga estando a la vista. */}
+            {referencia !== null && (
+              <FiltrosDeLaLista
+                alCambiar={cambiarFiltros}
+                filtros={filtros}
+                oficinas={oficinas}
+                referencia={referencia}
+              />
+            )}
+
+            {/* La lista y el mapa enseñan lo mismo: los dos son la misma
+                respuesta mirada de dos maneras, y un mapa con puntos que la
+                lista no tiene dejaría de serlo. */}
+            {visibles.length > 0 && (
+              <Resultados
+                busqueda={estado.busqueda}
+                localizacion={estado.localizacion}
+                oficinas={visibles}
+              />
+            )}
           </>
         )}
       </section>

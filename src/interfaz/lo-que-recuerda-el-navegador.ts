@@ -1,4 +1,5 @@
 import { avisoDe, soloDigitos } from './codigo-postal'
+import { deLaDireccion, enLaDireccion, SIN_FILTROS, type Filtros } from './filtros'
 
 /**
  * Las dos únicas cosas que esta web recuerda, y las dos viven en el navegador
@@ -34,14 +35,44 @@ export function codigoPostalDeLaDireccion(): string {
 }
 
 /**
- * Deja la búsqueda escrita en la dirección, sin apuntarla en el historial.
+ * Los filtros que traiga el enlace.
+ *
+ * Van en el mismo fragmento que el código postal y por lo mismo: una búsqueda
+ * ya filtrada se comparte tal cual —«mira, a menos de cinco kilómetros hay
+ * hueco mañana»— sin que el alojamiento registre de dónde es quien la abre.
+ *
+ * El resultado se guarda mientras el fragmento no cambie porque quien lo lee es
+ * `useSyncExternalStore`, y una instantánea distinta en cada pintado sería un
+ * pintado detrás de otro sin parar.
+ */
+let ultimoFragmento: string | null = null
+let ultimosFiltros: Filtros = SIN_FILTROS
+
+export function filtrosDeLaDireccion(): Filtros {
+  const fragmento = window.location.hash.replace(/^#/, '')
+  if (fragmento !== ultimoFragmento) {
+    ultimoFragmento = fragmento
+    ultimosFiltros = deLaDireccion(fragmento)
+  }
+  return ultimosFiltros
+}
+
+/** Lo que sabe el servidor de un fragmento: nada. Y sin filtros no se filtra. */
+export const SIN_FILTROS_EN_EL_SERVIDOR = (): Filtros => SIN_FILTROS
+
+/**
+ * Deja la búsqueda y sus filtros escritos en la dirección, sin apuntarlos en el
+ * historial.
  *
  * `replaceState` y no `pushState` porque cada consulta no es un sitio nuevo
  * donde se ha estado: con `pushState`, volver atrás desde la lista recorrería
- * una a una todas las búsquedas de la sesión en vez de salir de la web.
+ * una a una todas las búsquedas de la sesión en vez de salir de la web. Y desde
+ * que hay filtros vale doble: mover el control de distancia dejaría noventa y
+ * nueve paradas en el historial.
  */
-export function ponerEnLaDireccion(codigoPostal: string): void {
-  window.history.replaceState(null, '', `#${PARAMETRO}=${codigoPostal}`)
+export function ponerEnLaDireccion(codigoPostal: string, filtros: Filtros = SIN_FILTROS): void {
+  const puestos = enLaDireccion(filtros)
+  window.history.replaceState(null, '', `#${PARAMETRO}=${codigoPostal}${puestos ? `&${puestos}` : ''}`)
 }
 
 /**
