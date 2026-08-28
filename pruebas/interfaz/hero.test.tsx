@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent, { type UserEvent } from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import Portada from '@/app/page'
+import { BOTON, buscar, campoDelCodigoPostal, CODIGO_POSTAL, listaDeOficinas, montarPortada } from './la-portada'
 import {
   apiQueContesta,
   apiQueContestaCuandoSeLeDiga,
@@ -20,29 +20,6 @@ import {
  * aquí no se reserva— vive en lo que hay alrededor del formulario, y probar el
  * hero suelto dejaría eso sin probar.
  */
-
-const CODIGO_POSTAL = 'Código postal'
-const BOTON = /comprobar horas/i
-
-function montarPortada(): UserEvent {
-  const persona = userEvent.setup()
-  render(<Portada />)
-  return persona
-}
-
-async function buscar(persona: UserEvent, codigoPostal: string): Promise<void> {
-  await persona.type(screen.getByLabelText(CODIGO_POSTAL), codigoPostal)
-  await persona.click(screen.getByRole('button', { name: BOTON }))
-}
-
-/** La lista de oficinas, una vez ha llegado. */
-async function listaDeOficinas(): Promise<HTMLElement> {
-  return waitFor(() => screen.getByRole('list', { name: /oficinas/i }))
-}
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
 
 describe('la primera pantalla', () => {
   it('tiene un único campo y un único botón', () => {
@@ -99,7 +76,7 @@ describe('el campo de código postal', () => {
   it('no deja escribir nada que no sean cinco dígitos', async () => {
     const persona = montarPortada()
 
-    const campo = screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement
+    const campo = campoDelCodigoPostal()
     await persona.type(campo, '0a8b40-1 234')
 
     expect(campo.value).toBe('08401')
@@ -389,7 +366,7 @@ describe('lo que la web recuerda', () => {
     window.history.replaceState(null, '', '/')
     render(<Portada />)
 
-    expect((screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement).value).toBe('08402')
+    expect(campoDelCodigoPostal().value).toBe('08402')
   })
 
   it('lo recuerda en el navegador y no en ningún servidor nuestro', async () => {
@@ -469,7 +446,7 @@ describe('la búsqueda en la dirección de la página', () => {
     render(<Portada />)
 
     expect(within(await listaDeOficinas()).getAllByRole('listitem')).toHaveLength(1)
-    expect((screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement).value).toBe('08402')
+    expect(campoDelCodigoPostal().value).toBe('08402')
     expect(api.peticiones).toEqual([{ url: '/api/oficinas', cuerpo: { cp: '08402' } }])
   })
 
@@ -487,7 +464,7 @@ describe('la búsqueda en la dirección de la página', () => {
     window.history.replaceState(null, '', '/')
     render(<Portada />)
 
-    expect((screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement).value).toBe('08402')
+    expect(campoDelCodigoPostal().value).toBe('08402')
   })
 
   it('un fragmento con basura dentro no lanza ninguna búsqueda', async () => {
@@ -498,6 +475,6 @@ describe('la búsqueda en la dirección de la página', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: BOTON })).toBeTruthy())
     expect(api.peticiones).toEqual([])
-    expect((screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement).value).toBe('')
+    expect(campoDelCodigoPostal().value).toBe('')
   })
 })

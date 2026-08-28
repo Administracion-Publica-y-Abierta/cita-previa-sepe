@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
 import { avisoDe, DIGITOS, soloDigitos } from './codigo-postal'
 import { pedirOficinas, type Estado } from './consulta'
-import { ListaDeOficinas } from './lista-de-oficinas'
 import {
   codigoPostalDeLaDireccion,
   ponerEnLaDireccion,
   recordarCodigoPostal,
   ultimoCodigoPostal,
 } from './lo-que-recuerda-el-navegador'
+import { Resultados } from './resultados'
 import { resumenDe, seCuentaAlgo, tituloDe } from './resumen'
 
 /**
@@ -150,7 +150,7 @@ export function Hero() {
       {/* `noValidate` para que el aviso sea el nuestro y no el globo del
           navegador, que ni se puede redactar ni lo lee un lector de pantalla
           con la misma fiabilidad. */}
-      <form className="flex flex-col gap-3" noValidate onSubmit={alEnviar}>
+      <form className="mx-auto flex w-full max-w-3xl flex-col gap-3" noValidate onSubmit={alEnviar}>
         <label className="text-lg font-medium" htmlFor="codigo-postal">
           Código postal
         </label>
@@ -197,7 +197,7 @@ export function Hero() {
       {/* El nombre de la región va con su encabezado: sin él, `aria-labelledby`
           apuntaría a un identificador que no existe y la sección se quedaría
           sin nombre en vez de sin encabezado. */}
-      <section aria-labelledby={hayTitulo ? TITULO : undefined} className="flex flex-col gap-4">
+      <section aria-labelledby={hayTitulo ? TITULO : undefined} className="flex w-full flex-col gap-4">
         {hayTitulo && (
           <h2 className="text-2xl font-semibold" id={TITULO}>
             {tituloDe(busqueda)}
@@ -226,7 +226,7 @@ export function Hero() {
                 centro de {busqueda.localizacion.provincia} y pueden fallar por decenas de kilómetros.
               </p>
             )}
-            <ListaDeOficinas oficinas={busqueda.oficinas} />
+            <Resultados localizacion={busqueda.localizacion} oficinas={busqueda.oficinas} />
           </>
         )}
       </section>

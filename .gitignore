@@ -39,3 +39,6 @@ next-env.d.ts
 # salen de ellas ya anonimizados, con scripts/extraer-fixtures.mjs.
 /capturas/
 *.har
+
+# El worker de MapLibre, que se copia de node_modules en cada build.
+/public/mapa/

@@ -1,5 +1,11 @@
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
+import { pantalla } from './pantalla'
+
+/** Se empieza siempre en un móvil. El que quiera escritorio lo dice. */
+beforeEach(() => {
+  pantalla({ dosColumnas: false })
+})
 
 /**
  * Cada test empieza con el DOM vacío y sin nada recordado del anterior.
@@ -12,4 +18,5 @@ afterEach(() => {
   cleanup()
   window.localStorage.clear()
   window.history.replaceState(null, '', '/')
+  vi.unstubAllGlobals()
 })
