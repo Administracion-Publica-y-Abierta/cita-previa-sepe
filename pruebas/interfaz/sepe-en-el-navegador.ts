@@ -211,6 +211,11 @@ export interface ApiQueVaContando extends ApiFalsa {
   contar(evento: EventoDeLaPasada): void
   /** Cierra la respuesta: la búsqueda ha terminado. */
   cerrar(): void
+  /**
+   * El streaming se corta a la mitad. Es un caso real —la conexión se va— y el
+   * único que deja una pasada abierta sin terminarla.
+   */
+  romper(): void
 }
 
 /**
@@ -231,6 +236,10 @@ export function apiQueVaContando(): ApiQueVaContando {
     },
     cerrar() {
       mando?.close()
+      mando = null
+    },
+    romper() {
+      mando?.error(new Error('la conexión se ha ido'))
       mando = null
     },
   }

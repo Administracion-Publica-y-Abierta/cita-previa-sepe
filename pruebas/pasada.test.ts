@@ -193,8 +193,8 @@ describe('la búsqueda progresiva', () => {
     // combo «Subtrámite»— y es por ese par de nombres por el que quien pregunta
     // reconoce el suyo.
     expect(laCola(eventos).tramites).toEqual([
-      { id: 501, nombre: 'El primero', grupo: { id: 901, nombre: 'Un trámite' } },
-      { id: 502, nombre: 'El segundo', grupo: { id: 901, nombre: 'Un trámite' } },
+      { id: 501, nombre: 'El primero', grupo: EL_GRUPO },
+      { id: 502, nombre: 'El segundo', grupo: EL_GRUPO },
     ])
   })
 

@@ -14,6 +14,15 @@ import type { LoQueVaLlegando } from './lo-que-va-llegando'
  * una pantalla montada por delante.
  */
 
+/**
+ * Por qué trámites se pregunta: por unos cuantos, o por los de la zona entera.
+ *
+ * `'todos'` no es la lista de todos escrita a mano, y la diferencia importa:
+ * quién hay en la zona lo dice el SEPE en la cola, así que pedirlos por su
+ * nombre exigiría saberlos antes de preguntarlos.
+ */
+export type PorQueSePregunta = number[] | 'todos'
+
 /** Un grupo del SEPE con los trámites de la zona que cuelgan de él. */
 export interface GrupoConSusTramites {
   grupo: GrupoDeTramites
@@ -86,7 +95,7 @@ export function soloLoElegido(estado: LoQueVaLlegando, elegidos: number[]): LoQu
 export function loQueHayQuePedir(
   elegidos: number[],
   estado: LoQueVaLlegando,
-  enCamino: number[] | 'todos',
+  enCamino: PorQueSePregunta,
 ): number[] {
   if (enCamino === 'todos') return []
 

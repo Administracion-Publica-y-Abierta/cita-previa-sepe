@@ -22,6 +22,7 @@ import {
 } from './lo-que-va-llegando'
 import {
   codigoPostalDeLaDireccion,
+  NINGUNO,
   ponerEnLaDireccion,
   recordarCodigoPostal,
   tramitesDeLaDireccion,
@@ -30,7 +31,12 @@ import {
 import { seguirLaPasada } from './pasada'
 import { Resultados } from './resultados'
 import { resumenDe, seCuentaAlgo, tituloDe } from './resumen'
-import { loQueHayQuePedir, marcando, soloLoElegido } from './tramites-elegidos'
+import {
+  loQueHayQuePedir,
+  marcando,
+  soloLoElegido,
+  type PorQueSePregunta,
+} from './tramites-elegidos'
 
 /**
  * Un campo y un botón.
@@ -81,8 +87,7 @@ const SIN_CAMBIOS = () => () => {}
  */
 const EN_EL_SERVIDOR = () => ''
 
-/** Lo mismo para los trámites marcados, y siempre el mismo array. */
-const NINGUNO: number[] = []
+/** Lo mismo para los trámites marcados: ninguno, y siempre el mismo array. */
 const NINGUNO_EN_EL_SERVIDOR = () => NINGUNO
 
 export function Hero() {
@@ -130,7 +135,7 @@ export function Hero() {
    * cuando es la de la zona entera—. Lo segundo es lo que evita salir otra vez
    * al SEPE a por algo que ya viene de camino.
    */
-  const enCurso = useRef<{ mando: AbortController; cubre: number[] | 'todos' } | null>(null)
+  const enCurso = useRef<{ mando: AbortController; cubre: PorQueSePregunta } | null>(null)
   /** Lo marcado que espera a que acabe la pasada abierta para salir al SEPE. */
   const porPedir = useRef<number[]>([])
   /**
@@ -149,7 +154,7 @@ export function Hero() {
    * puede relanzar nada: lo que se marca se apunta, y cuando la que va termina
    * se sale a por ello sin tocar lo que ya está en la lista.
    */
-  const seguir = useCallback(async (codigoPostal: string, primeros: number[] | 'todos', numero: number) => {
+  const seguir = useCallback(async (codigoPostal: string, primeros: PorQueSePregunta, numero: number) => {
     const esLaBuena = () => numero === ultimaBusqueda.current
     let toca = primeros
 
@@ -170,9 +175,15 @@ export function Hero() {
       if (!esLaBuena() || fin === 'abandonada') return
       enCurso.current = null
 
-      // Con el SEPE caído o el código postal rechazado no se sigue pidiendo: lo
-      // marcado se queda esperando a que alguien vuelva a buscar.
+      // Con el SEPE caído o el código postal rechazado no se sigue pidiendo:
+      // encadenar peticiones a algo que no contesta no arregla nada.
+      //
+      // Y la cola se vacía al salir. Dejarla puesta la convertiría en una
+      // promesa que ya no va a cumplir nadie: esos trámites cuentan luego como
+      // «ya vienen de camino», así que no se pedirían nunca más y quien los
+      // marcó los vería marcados y vacíos para siempre.
       if (fin !== 'terminada' || porPedir.current.length === 0) {
+        porPedir.current = []
         setLlegando((antes) => acabada(antes ?? empezando(numero), fin))
         if (fin === 'rechazado') setAviso(LO_RECHAZA_EL_SERVIDOR)
         return
@@ -308,13 +319,13 @@ export function Hero() {
    * filtro mira y no tira, así que `estado` sigue teniendo lo desmarcado
    * entero por si vuelve a marcarse.
    */
-  const mirado = useMemo(() => soloLoElegido(estado, elegidos), [estado, elegidos])
+  const loQueSeMira = useMemo(() => soloLoElegido(estado, elegidos), [estado, elegidos])
 
   // Se funden una vez por evento y no en cada pintado: la lista es la misma
   // mientras no llegue nada, y darle al mapa una lista nueva cada vez que se
   // teclea en el campo es hacerle rehacer sus puntos por nada.
-  const oficinas = useMemo(() => oficinasDe(mirado), [mirado])
-  const hayTitulo = seCuentaAlgo(mirado)
+  const oficinas = useMemo(() => oficinasDe(loQueSeMira), [loQueSeMira])
+  const hayTitulo = seCuentaAlgo(loQueSeMira)
 
   return (
     <>
@@ -382,7 +393,7 @@ export function Hero() {
       <section aria-labelledby={hayTitulo ? TITULO : undefined} className="flex w-full flex-col gap-4">
         {hayTitulo && (
           <h2 className="text-2xl font-semibold" id={TITULO}>
-            {tituloDe(mirado)}
+            {tituloDe(loQueSeMira)}
           </h2>
         )}
 
@@ -397,7 +408,7 @@ export function Hero() {
           anunciar.
         */}
         <p className="text-lg" role="status">
-          {resumenDe(mirado, oficinas)}
+          {resumenDe(loQueSeMira, oficinas)}
         </p>
 
         {/* En cuanto hay una oficina se enseña, sin esperar a que termine la
@@ -405,15 +416,15 @@ export function Hero() {
             en vez de a los cuarenta y cuatro segundos. */}
         {oficinas.length > 0 && (
           <>
-            {mirado.localizacion?.precision === 'aproximada-provincial' && (
+            {loQueSeMira.localizacion?.precision === 'aproximada-provincial' && (
               <p className="text-base opacity-70">
                 No hemos podido situar ese código postal con exactitud: las distancias están medidas desde el
-                centro de {mirado.localizacion.provincia} y pueden fallar por decenas de kilómetros.
+                centro de {loQueSeMira.localizacion.provincia} y pueden fallar por decenas de kilómetros.
               </p>
             )}
             <Resultados
-              busqueda={mirado.busqueda}
-              localizacion={mirado.localizacion}
+              busqueda={loQueSeMira.busqueda}
+              localizacion={loQueSeMira.localizacion}
               oficinas={oficinas}
             />
           </>

@@ -12,7 +12,7 @@ import { agrupados, loQueHayQuePedir, marcando, soloLoElegido } from './tramites
  * traído, o uno que vuelve a preguntar por algo que ya se sabe.
  */
 
-const COBRANDO = { id: 155, nombre: 'Estoy cobrando y ha cambiado mi situación' }
+const COBRANDO = { id: 155, nombre: 'Estoy cobrando prestación/subsidio y ha cambiado mi situación' }
 const FINALIZADO = { id: 158, nombre: 'He finalizado un trabajo' }
 
 function tramite(id: number, nombre: string, grupo = COBRANDO): TramiteEnCola {
@@ -21,7 +21,7 @@ function tramite(id: number, nombre: string, grupo = COBRANDO): TramiteEnCola {
 
 const EXTRANJERO = tramite(23, 'Voy a salir al extranjero')
 const JUBILAR = tramite(17, 'Me voy a jubilar')
-const TRABAJO = tramite(14, 'He encontrado trabajo', FINALIZADO)
+const REANUDAR = tramite(14, 'Quiero reanudar mi prestación', FINALIZADO)
 
 function resuelto(tramite: TramiteEnCola): TramiteResuelto {
   return {
@@ -43,14 +43,14 @@ function llegando(parcial: Partial<LoQueVaLlegando> = {}): LoQueVaLlegando {
 
 describe('los trámites agrupados como los agrupa el SEPE', () => {
   it('los reparte en sus grupos sin cambiarles el orden ni el nombre', () => {
-    expect(agrupados([EXTRANJERO, TRABAJO, JUBILAR])).toEqual([
+    expect(agrupados([EXTRANJERO, REANUDAR, JUBILAR])).toEqual([
       { grupo: COBRANDO, tramites: [EXTRANJERO, JUBILAR] },
-      { grupo: FINALIZADO, tramites: [TRABAJO] },
+      { grupo: FINALIZADO, tramites: [REANUDAR] },
     ])
   })
 
   it('los grupos salen en el orden en que el SEPE los lista', () => {
-    expect(agrupados([TRABAJO, EXTRANJERO]).map(({ grupo }) => grupo.nombre)).toEqual([
+    expect(agrupados([REANUDAR, EXTRANJERO]).map(({ grupo }) => grupo.nombre)).toEqual([
       FINALIZADO.nombre,
       COBRANDO.nombre,
     ])
@@ -109,7 +109,7 @@ describe('lo que se mira con el filtro puesto', () => {
 })
 
 describe('lo que hay que ir a pedirle al SEPE', () => {
-  const estado = llegando({ cola: [EXTRANJERO, JUBILAR, TRABAJO], resueltos: [resuelto(EXTRANJERO)] })
+  const estado = llegando({ cola: [EXTRANJERO, JUBILAR, REANUDAR], resueltos: [resuelto(EXTRANJERO)] })
 
   it('marcar uno que aún no se ha consultado lo mete en la cola', () => {
     expect(loQueHayQuePedir([JUBILAR.id], estado, [])).toEqual([JUBILAR.id])
@@ -120,8 +120,8 @@ describe('lo que hay que ir a pedirle al SEPE', () => {
   })
 
   it('no pide lo que ya viene de camino', () => {
-    expect(loQueHayQuePedir([JUBILAR.id, TRABAJO.id], estado, [JUBILAR.id])).toEqual([TRABAJO.id])
-    expect(loQueHayQuePedir([JUBILAR.id, TRABAJO.id], estado, 'todos')).toEqual([])
+    expect(loQueHayQuePedir([JUBILAR.id, REANUDAR.id], estado, [JUBILAR.id])).toEqual([REANUDAR.id])
+    expect(loQueHayQuePedir([JUBILAR.id, REANUDAR.id], estado, 'todos')).toEqual([])
   })
 
   it('no le pide al SEPE nada que no esté en la cola de la zona', () => {

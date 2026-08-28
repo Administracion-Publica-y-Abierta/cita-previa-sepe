@@ -18,13 +18,14 @@ const PARAMETRO = 'cp'
 const TRAMITES = 't'
 
 /**
- * Ninguno, y siempre el mismo array.
+ * Ningún trámite marcado, y siempre el mismo array.
  *
  * `useSyncExternalStore` compara la instantánea con `Object.is`: una lista
  * vacía recién hecha en cada lectura sería distinta de la anterior y la
- * pantalla se repintaría sin parar.
+ * pantalla se repintaría sin parar. Se exporta por eso mismo, para que quien
+ * la lea no se haga la suya.
  */
-const NINGUNO: number[] = []
+export const NINGUNO: number[] = []
 
 /**
  * La búsqueda va en el **fragmento** de la URL y no en la cadena de consulta.

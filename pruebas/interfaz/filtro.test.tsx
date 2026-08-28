@@ -1,6 +1,5 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import Portada from '@/app/page'
 import { buscar, campoDelCodigoPostal, listaDeOficinas, montarPortada } from './la-portada'
 import {
   apiQueContesta,
@@ -145,6 +144,25 @@ describe('marcar varios trámites a la vez', () => {
     expect(api.peticiones).toHaveLength(1)
   })
 
+  it('desmarcar el último no deja la pantalla vacía: sin filtro se vuelven a ver todos', async () => {
+    const persona = montarPortada()
+    const api = apiQueContesta(DOS_CONSULTADOS)
+
+    await buscar(persona, '08402')
+    await listaDeOficinas()
+
+    await persona.click(casilla(JUBILAR))
+    await persona.click(casilla(JUBILAR))
+
+    // Ninguno marcado es no haber filtrado, y no «no quiero ninguno»: es lo
+    // que dice el texto que hay encima de las casillas y lo que hace todo el
+    // mundo con un filtro que se quita. Dejar la pantalla en blanco sería
+    // castigar a quien ha probado a marcar.
+    expect(nombresDeLasOficinas(await listaDeOficinas())).toEqual(['LA DEL EXTRANJERO', 'LA DE JUBILARSE'])
+    expect(screen.getByText(/sin marcar ninguno se enseñan todos/i)).toBeTruthy()
+    expect(api.peticiones).toHaveLength(1)
+  })
+
   it('el botón de quitar el filtro devuelve el resultado entero', async () => {
     const persona = montarPortada()
     apiQueContesta(DOS_CONSULTADOS)
@@ -239,6 +257,32 @@ describe('marcar algo que todavía no se ha consultado', () => {
     // Y lo de antes sigue donde estaba: se ha sumado, no se ha empezado otra vez.
     expect(screen.getByText('LA DEL EXTRANJERO')).toBeTruthy()
   })
+  it('si la conexión se corta con algo esperando turno, no se queda marcado y sin pedir nunca', async () => {
+    window.history.replaceState(null, '', `/#cp=08402&t=${EXTRANJERO.id}`)
+    const api = apiQueVaContando()
+    const persona = montarPortada()
+
+    await waitFor(() => expect(api.peticiones).toHaveLength(1))
+    api.contar(cola([EXTRANJERO, JUBILAR, REANUDAR]))
+    api.contar(resuelto({ tramite: EXTRANJERO, oficinas: [LA_DEL_EXTRANJERO] }))
+    await screen.findByRole('checkbox', { name: REANUDAR.nombre })
+
+    await persona.click(casilla(REANUDAR))
+    api.romper()
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/no se ha podido conectar|se ha cortado/i))
+
+    // Lo que se quedó esperando turno no puede contar como que ya viene de
+    // camino: nadie lo trae ya, y quien lo marcó lo vería marcado y vacío para
+    // siempre. Al marcar otro se piden los dos.
+    await persona.click(casilla(JUBILAR))
+
+    await waitFor(() => expect(api.peticiones).toHaveLength(2))
+    expect(api.peticiones[1].cuerpo).toEqual({
+      cp: '08402',
+      tramites: [REANUDAR.id, JUBILAR.id],
+    })
+  })
+
   it('lo que se desmarca antes de que le llegue el turno se cae de la cola', async () => {
     window.history.replaceState(null, '', `/#cp=08402&t=${EXTRANJERO.id}`)
     const api = apiQueVaContando()
@@ -282,7 +326,7 @@ describe('los trámites marcados y la dirección de la página', () => {
     window.history.replaceState(null, '', `/#cp=08402&t=${JUBILAR.id}`)
     const api = apiQueContesta([cola([EXTRANJERO, JUBILAR]), resuelto({ tramite: JUBILAR, oficinas: [LA_DE_JUBILARSE] })])
 
-    render(<Portada />)
+    montarPortada()
     await listaDeOficinas()
 
     expect(casilla(JUBILAR).checked).toBe(true)

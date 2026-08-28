@@ -68,8 +68,7 @@ describe('la primera pantalla', () => {
     // Sigue sin haber más que rellenar que el código postal, y no se llama
     // DNI. Las casillas del filtro no cuentan: no piden ningún dato de nadie,
     // solo eligen qué de lo que ya hay se mira.
-    const campos = [...document.querySelectorAll('input, select, textarea')]
-    expect(campos.filter((campo) => campo.getAttribute('type') !== 'checkbox')).toHaveLength(1)
+    expect(document.querySelectorAll('input:not([type=checkbox]), select, textarea')).toHaveLength(1)
     expect(screen.queryByLabelText(/dni|nif|documento/i)).toBe(null)
   })
 })
