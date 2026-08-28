@@ -1,0 +1,95 @@
+/**
+ * El nivel 3 del árbol de trámites no viene en JSON como los otros dos: el SEPE
+ * lo manda ya montado, un `<select>` con sus `<option>` dentro, tal como lo
+ * pega su propia web en la página. Es el único sitio de este proyecto donde hay
+ * que leer HTML, y también el que da el `idGrupoServicio` que consume el mapa,
+ * así que se aísla aquí: es la pieza que se rompe primero si el SEPE toca su
+ * plantilla, y así se rompe sola y con un test que lo dice.
+ */
+
+/** Un subtrámite del combo, con el nombre que el SEPE le pone. */
+export interface Opcion {
+  id: number
+  nombre: string
+}
+
+/**
+ * Los atributos vienen repartidos en varias líneas y son media docena
+ * (`data-esservicio`, `data-id-entidad-oficina`...), así que se salta todo
+ * hasta el `>`. El valor tiene que ser un número: el `<option value="">` del
+ * «--- Seleccionar ---» no es un trámite y se queda fuera por aquí.
+ */
+const OPCION = /<option\s+value="(\d+)"[^>]*>([\s\S]*?)<\/option>/g
+
+/**
+ * Las entidades que el SEPE usa de verdad en los nombres de sus trámites. La
+ * lista es corta a propósito: lo que no esté se deja tal cual, que es menos
+ * malo que borrarlo.
+ */
+const ENTIDADES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  aacute: 'á',
+  eacute: 'é',
+  iacute: 'í',
+  oacute: 'ó',
+  uacute: 'ú',
+  ntilde: 'ñ',
+  uuml: 'ü',
+  Aacute: 'Á',
+  Eacute: 'É',
+  Iacute: 'Í',
+  Oacute: 'Ó',
+  Uacute: 'Ú',
+  Ntilde: 'Ñ',
+  Uuml: 'Ü',
+  ordm: 'º',
+  ordf: 'ª',
+  iquest: '¿',
+  iexcl: '¡',
+  laquo: '«',
+  raquo: '»',
+  ndash: '–',
+  mdash: '—',
+  hellip: '…',
+  middot: '·',
+  euro: '€',
+}
+
+const ENTIDAD = /&(#\d+|#[xX][0-9a-fA-F]+|\w+);/g
+
+/**
+ * Los subtrámites de un combo del SEPE.
+ *
+ * Las opciones sin nombre se caen: quien pregunta elige su trámite por el
+ * nombre, y un identificador suelto no se le puede enseñar a nadie.
+ */
+export function opcionesDe(html: string): Opcion[] {
+  return [...html.matchAll(OPCION)]
+    .map(([, valor, etiqueta]) => ({ id: Number(valor), nombre: comoSeLee(etiqueta) }))
+    .filter((opcion) => opcion.nombre !== '')
+}
+
+/**
+ * El texto de una etiqueta tal como hay que enseñárselo a una persona.
+ *
+ * Dos arreglos, y los dos son del SEPE: escapa los acentos («Declaraci&oacute;n»)
+ * y reparte saltos de línea y tabuladores dentro de la etiqueta según le sale
+ * de la plantilla.
+ */
+function comoSeLee(etiqueta: string): string {
+  return etiqueta
+    .replace(ENTIDAD, (entera, cuerpo: string) => {
+      if (cuerpo.startsWith('#')) {
+        const punto = cuerpo[1] === 'x' || cuerpo[1] === 'X' ? parseInt(cuerpo.slice(2), 16) : Number(cuerpo.slice(1))
+        return Number.isFinite(punto) && punto > 0 ? String.fromCodePoint(punto) : entera
+      }
+      return ENTIDADES[cuerpo] ?? entera
+    })
+    .replace(/\s+/g, ' ')
+    .trim()
+}

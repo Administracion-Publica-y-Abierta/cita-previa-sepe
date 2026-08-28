@@ -63,3 +63,72 @@ export function sepeSinOficinas(endpoint: string): RespuestaAMano {
     cuerpo: JSON.stringify({ listTipoAtencion: [], listaTramites: [], listaOficina: [] }),
   }
 }
+
+/** Una entrada de cualquiera de los tres niveles del árbol de trámites. */
+export interface EntradaDelArbol {
+  id: number
+  nombre: string
+}
+
+/**
+ * Los niveles 1 y 2 del árbol, puestos a mano.
+ *
+ * Sirven para lo que las grabaciones no pueden: cambiarle el árbol al SEPE y
+ * comprobar que el catálogo que sale es el nuevo. Con el árbol grabado, un
+ * catálogo con los identificadores escritos a mano pasaría el test igual.
+ */
+export function nivelesDelSepe(
+  nivel: 1 | 2,
+  idsNiveles: string,
+  entradas: EntradaDelArbol[],
+): RespuestaAMano {
+  return {
+    endpoint: 'cargaComboNivelesTramitesCPEntidad',
+    cuando: { nivel: String(nivel), idsNiveles },
+    tipoContenido: 'application/json; charset=UTF-8',
+    cuerpo: JSON.stringify({
+      tipoNivelServicio: { idJerarquiaTramite: 5, nivel },
+      listaTiposTramites: [],
+      listaNivelesTramites: entradas.map((entrada) => ({
+        idServicio: entrada.id,
+        nivel,
+        esServicio: false,
+        ultimoNivel: nivel === 2,
+        codigoEntidad: null,
+        auxServicio: entrada.nombre,
+      })),
+    }),
+  }
+}
+
+/**
+ * El nivel 3 de un trámite, con la forma exacta con la que lo manda el SEPE:
+ * HTML, un `<select>` con sus `<option>`, los atributos repartidos en varias
+ * líneas y el «--- Seleccionar ---» delante.
+ *
+ * La lista vacía es un caso real y no un apaño: hay trámites cuyo combo de
+ * subtrámites vuelve sin nada dentro.
+ */
+export function subtramitesDelSepe(idsNiveles: number, entradas: EntradaDelArbol[]): RespuestaAMano {
+  const opciones = entradas
+    .map(
+      (entrada) => `
+			<option value="${entrada.id}"
+				data-ids-jerarquia-tramites="5"
+				data-entidad-oficina="SEPE"
+				data-esservicio="true">${entrada.nombre}</option> `,
+    )
+    .join('\n')
+
+  return {
+    endpoint: 'cargarComboGruposTramitesByNivel',
+    cuando: { idsNiveles: String(idsNiveles) },
+    tipoContenido: 'text/html; charset=UTF-8',
+    cuerpo: `
+	<label for="comboTiposServicios">Subtr&aacute;mite(*)</label>
+	<select title="Subtr&aacute;mite" id="comboTiposServicios" class="combo">
+			<option value="">--- Seleccionar ---</option>
+${opciones}
+	</select>`,
+  }
+}

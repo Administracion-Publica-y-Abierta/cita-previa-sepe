@@ -32,10 +32,10 @@ export class SepeSinAgenda extends Error {
   }
 }
 
-/** Tres veces seguidas contestando algo que no es JSON: está caído o saturado. */
+/** Tres veces seguidas contestando algo que no se esperaba: está caído o saturado. */
 export class SepeNoResponde extends Error {
   constructor() {
-    super('El SEPE no ha contestado JSON después de tres intentos.')
+    super('El SEPE no ha contestado lo que se esperaba después de tres intentos.')
     this.name = 'SepeNoResponde'
   }
 }
@@ -44,6 +44,16 @@ export class SepeNoResponde extends Error {
 export interface SesionSepe {
   /** Un POST del que se espera JSON. Reintenta con sesión nueva si no lo es. */
   json<T>(ruta: string, parametros: Parametros): Promise<T>
+  /**
+   * Un POST del que se espera HTML. Reintenta con sesión nueva si el cuerpo no
+   * lleva `senal` dentro.
+   *
+   * Hace falta una señal porque aquí no vale el truco del JSON: cuando el SEPE
+   * se satura contesta una página de error, que también es HTML, y sin algo que
+   * mirar dentro se colaría como respuesta buena. La señal es un trozo de la
+   * plantilla del combo que se está pidiendo, y quien llama sabe cuál es.
+   */
+  html(ruta: string, parametros: Parametros, senal: string): Promise<string>
 }
 
 export interface ClienteSepe {
@@ -108,37 +118,60 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
     return { ok: respuesta.ok, cuerpo: await respuesta.text() }
   }
 
-  return {
-    async json<T>(ruta: string, parametros: Parametros): Promise<T> {
-      for (let intento = 1; ; intento += 1) {
-        // Si el `fetch` falla —red caída, socket colgado— el error sale de
-        // aquí tal cual. Convertirlo en `sepe-no-responde` taparía también el
-        // error del `fetch` falso que avisa de que a un test le falta una
-        // grabación, que es justo el aviso que no se puede perder.
-        const { ok, cuerpo } = await postear(ruta, parametros)
+  /**
+   * Postea e interpreta, insistiendo con una sesión nueva mientras la respuesta
+   * no tenga la forma que tenía que tener.
+   *
+   * Que `interpretar` reviente es la señal de reintento, y por eso lo comparten
+   * el JSON y el HTML: los dos endpoints se estropean igual —la sesión se queda
+   * sorda y contesta una página—, y lo único que cambia es cómo se nota.
+   */
+  async function insistir<T>(
+    ruta: string,
+    parametros: Parametros,
+    interpretar: (cuerpo: string) => T,
+  ): Promise<T> {
+    for (let intento = 1; ; intento += 1) {
+      // Si el `fetch` falla —red caída, socket colgado— el error sale de
+      // aquí tal cual. Convertirlo en `sepe-no-responde` taparía también el
+      // error del `fetch` falso que avisa de que a un test le falta una
+      // grabación, que es justo el aviso que no se puede perder.
+      const { ok, cuerpo } = await postear(ruta, parametros)
 
-        if (ok && !cuerpo.trim()) throw new SepeSinAgenda()
+      if (ok && !cuerpo.trim()) throw new SepeSinAgenda()
 
-        if (ok) {
-          try {
-            return JSON.parse(cuerpo) as T
-          } catch {
-            // Cae al reintento de abajo.
-          }
+      if (ok) {
+        try {
+          return interpretar(cuerpo)
+        } catch {
+          // Cae al reintento de abajo.
         }
-
-        // HTML donde tenía que ir JSON: la sesión se ha quedado sorda. Medido
-        // a mano: el mismo trámite que falla con la sesión vieja contesta bien
-        // con una recién hecha unos segundos después.
-        abierta = false
-        galleta = null
-
-        if (intento >= INTENTOS) {
-          registro.aviso('el SEPE no contesta JSON después de tres intentos: se da por caído')
-          throw new SepeNoResponde()
-        }
-        registro.aviso('el SEPE ha contestado algo que no es JSON: se reintenta con una sesión nueva')
       }
+
+      // Una página de error donde tenía que ir la respuesta: la sesión se ha
+      // quedado sorda. Medido a mano: el mismo trámite que falla con la sesión
+      // vieja contesta bien con una recién hecha unos segundos después.
+      abierta = false
+      galleta = null
+
+      if (intento >= INTENTOS) {
+        registro.aviso('el SEPE no contesta lo que se espera después de tres intentos: se da por caído')
+        throw new SepeNoResponde()
+      }
+      registro.aviso('el SEPE ha contestado algo que no se esperaba: se reintenta con una sesión nueva')
+    }
+  }
+
+  return {
+    json<T>(ruta: string, parametros: Parametros): Promise<T> {
+      return insistir(ruta, parametros, (cuerpo) => JSON.parse(cuerpo) as T)
+    },
+
+    html(ruta: string, parametros: Parametros, senal: string): Promise<string> {
+      return insistir(ruta, parametros, (cuerpo) => {
+        if (!cuerpo.includes(senal)) throw new Error('no es la respuesta que se esperaba')
+        return cuerpo
+      })
     },
   }
 }

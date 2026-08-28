@@ -1,5 +1,6 @@
 import { crearGeocodificador, type Geocodificador } from '@/localizacion/geocodificador'
 import { crearBuscador, type Buscador } from '@/sepe/buscador'
+import { crearCatalogo, type Catalogo } from '@/sepe/catalogo'
 import { crearClienteSepe } from '@/sepe/cliente'
 import { crearFrenoEnMemoria } from '@/sepe/freno'
 import type { Dependencias } from './dependencias'
@@ -17,6 +18,8 @@ export interface App {
   dependencias: Dependencias
   /** Código postal → coordenadas, con el centroide provincial de reserva. */
   geocodificador: Geocodificador
+  /** Código postal → el árbol de trámites que el SEPE ofrece hoy en esa zona. */
+  catalogo: Catalogo
   /** Código postal y trámite → oficinas de la zona con su primer hueco. */
   buscador: Buscador
 }
@@ -33,6 +36,10 @@ export function crearApp(dependencias: Dependencias): App {
   return {
     dependencias,
     geocodificador,
+    // El catálogo comparte cliente con el buscador, y por tanto freno: el
+    // ritmo es del proceso entero, y las diez peticiones de un catálogo no
+    // pueden colarse por delante de las de una búsqueda que ya iba.
+    catalogo: crearCatalogo({ clienteSepe, reloj: dependencias.reloj }),
     buscador: crearBuscador({ clienteSepe, geocodificador, reloj: dependencias.reloj }),
   }
 }

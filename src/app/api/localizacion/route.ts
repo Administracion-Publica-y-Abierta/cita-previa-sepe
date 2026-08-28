@@ -1,18 +1,6 @@
 import { CodigoPostalInvalido } from '@/localizacion/geocodificador'
 import { appDeProduccion } from '@/nucleo/app-de-produccion'
-
-/**
- * Un único mensaje, escrito a mano y siempre el mismo.
- *
- * Nada de lo que llegue en la petición se devuelve: un mensaje que repite lo
- * que ha tecleado quien pregunta es a la vez una vía de inyección hacia la
- * interfaz y una forma de que ese dato acabe en el registro de errores del
- * alojamiento sin que nadie lo haya decidido.
- */
-const CODIGO_POSTAL_INVALIDO = {
-  error: 'codigo-postal-invalido',
-  mensaje: 'El código postal debe tener cinco dígitos y empezar por una provincia española, del 01 al 52.',
-}
+import { CODIGO_POSTAL_INVALIDO, codigoPostalDe } from '../errores'
 
 /**
  * `POST /api/localizacion` con `{"cp": "08401"}` → dónde cae ese código postal.
@@ -30,8 +18,7 @@ const CODIGO_POSTAL_INVALIDO = {
  * postal en el propio navegador.
  */
 export async function POST(peticion: Request): Promise<Response> {
-  const cuerpo = (await peticion.json().catch(() => null)) as { cp?: unknown } | null
-  const codigoPostal = typeof cuerpo?.cp === 'string' ? cuerpo.cp : ''
+  const codigoPostal = await codigoPostalDe(peticion)
 
   try {
     return Response.json(await appDeProduccion().geocodificador.localizar(codigoPostal))
