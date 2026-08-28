@@ -1,6 +1,7 @@
 import type { Localizacion } from '@/localizacion/geocodificador'
-import type { Buscador, EstadoDeLaBusqueda } from './buscador'
+import type { Buscador } from './buscador'
 import type { ArbolDeTramites, Catalogo } from './catalogo'
+import type { EstadoDeLaConsulta } from './consultas'
 import type { Subtramite } from './niveles'
 import type { Oficina } from './oficinas'
 
@@ -20,15 +21,15 @@ import type { Oficina } from './oficinas'
  */
 
 /**
- * Los tres estados de la búsqueda más uno propio: puede que el árbol esté bien
- * y aun así no haya nada que consultar.
+ * Los estados de la consulta más uno propio: puede que el árbol esté bien y
+ * aun así no haya nada que consultar.
  *
  * `sin-tramites` es información y no una avería, igual que `sin-agenda`: el
  * SEPE ha contestado, y lo que dice es que en esa zona no ofrece ningún
  * trámite con cita. La interfaz lo pinta distinto de un SEPE caído porque
  * volver a intentarlo no va a cambiar nada.
  */
-export type EstadoDelPrimerTramite = EstadoDeLaBusqueda | 'sin-tramites'
+export type EstadoDelPrimerTramite = EstadoDeLaConsulta | 'sin-tramites'
 
 export interface BusquedaDelPrimerTramite {
   estado: EstadoDelPrimerTramite
@@ -42,6 +43,10 @@ export interface BusquedaDelPrimerTramite {
    * ha elegido ese algo. Sin decir cuál es, la lista no se puede leer.
    */
   tramite: Subtramite | null
+  /** No se ha llamado al SEPE: la respuesta ya estaba guardada. */
+  desdeCache: boolean
+  /** Lo guardado ha pasado su TTL y se sirve igual porque el SEPE no contesta. */
+  caducada: boolean
   /** De dónde salen los kilómetros, y con cuánta confianza. `null` si no se llegó a buscar. */
   localizacion: Localizacion | null
   oficinas: Oficina[]
@@ -94,7 +99,13 @@ export function crearBuscadorDelPrimerTramite(piezas: {
   }
 }
 
-/** Lo que se devuelve cuando no se ha llegado a preguntarle al mapa. */
+/**
+ * Lo que se devuelve cuando no se ha llegado a preguntarle al mapa.
+ *
+ * `desdeCache` y `caducada` van en `false` porque describen a la consulta de
+ * las oficinas, y aquí esa consulta no ha existido. El catálogo tiene su
+ * propia frescura y todavía no la cuenta: no tiene caché delante.
+ */
 function sinBuscar(estado: EstadoDelPrimerTramite, consultadoEn: number): BusquedaDelPrimerTramite {
-  return { estado, consultadoEn, tramite: null, localizacion: null, oficinas: [] }
+  return { estado, consultadoEn, tramite: null, desdeCache: false, caducada: false, localizacion: null, oficinas: [] }
 }

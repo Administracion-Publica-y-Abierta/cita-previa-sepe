@@ -322,6 +322,42 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
     expect(screen.queryByRole('list', { name: /oficinas/i })).toBe(null)
   })
 
+  it('«hay cola» no se cuenta como que no hay citas', async () => {
+    const persona = montarPortada()
+    apiQueContesta(respuesta({ estado: 'vuelve-en-un-momento', tramite: null, oficinas: [] }))
+
+    await buscar(persona, '08402')
+
+    // El freno no ha dado ficha. Quien lea «no hay citas» deja de mirar, y lo
+    // que pasa es que ahora mismo hay mucha gente preguntando.
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/vuelve a probar en un momento/i))
+    expect(screen.getByRole('status').textContent).not.toMatch(/no hay citas/i)
+    expect(screen.queryByRole('list', { name: /oficinas/i })).toBe(null)
+  })
+
+  it('dice que el dato es viejo cuando se sirve lo caducado porque el SEPE no contesta', async () => {
+    const persona = montarPortada()
+    apiQueContesta(respuesta({ caducada: true, desdeCache: true }))
+
+    await buscar(persona, '08402')
+    await listaDeOficinas()
+
+    // Enseñar un hueco guardado hace horas como si fuera de ahora es dar por
+    // vigente algo que puede llevar cogido desde entonces.
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/datos de hace un rato/i))
+  })
+
+  it('una respuesta reciente servida de la caché no se anuncia como vieja', async () => {
+    const persona = montarPortada()
+    apiQueContesta(respuesta({ caducada: false, desdeCache: true }))
+
+    await buscar(persona, '08402')
+    await listaDeOficinas()
+
+    // Venir de la caché dentro de su TTL solo quiere decir que ha ido rápido.
+    expect(screen.getByRole('status').textContent).not.toMatch(/hace un rato/i)
+  })
+
   it('un código postal que el servidor rechaza se enseña como aviso del campo', async () => {
     const persona = montarPortada()
     apiQueContesta({

@@ -44,12 +44,34 @@ Lo que devuelve:
 - `reloj` — `reloj.avanzar(2500)` mueve el tiempo sin gastarlo.
 
 Admite `respuestas` —respuestas puestas a mano para los caminos que no hay
-grabados: un error, un HTML de saturación— e `instanteInicial`, por si un test
-necesita otra fecha. El reloj arranca por defecto en el instante de la segunda
-captura, para que las fechas de los fixtures sigan siendo futuro.
+grabados: un error, un HTML de saturación—, `instanteInicial`, por si un test
+necesita otra fecha, y `configuracion`, para el TTL de la caché, cuánto se
+conserva una respuesta buena y el ancho de la clave. El reloj arranca por defecto en el instante de la segunda captura,
+para que las fechas de los fixtures sigan siendo futuro.
+
+Devuelve además el `almacen`, que es donde viven el freno y la caché. Sirve
+para lo único que no se puede montar de otra forma:
+
+```ts
+const primera = montarApp()
+const segunda = otraInvocacion(primera)   // otro proceso, mismo almacén
+```
+
+`otraInvocacion` monta **otra aplicación** con su memoria y su `fetch`
+propios, compartiendo el reloj y el almacén. Es lo más parecido a dos
+funciones serverless atendiendo a la vez, y es la única forma de comprobar lo
+que de verdad se le pide al freno y a la caché: que valgan **entre**
+invocaciones y no solo dentro de una. Un single-flight guardado en una
+variable del proceso pasaría el test de dos búsquedas simultáneas y fallaría
+en producción.
 
 El ritmo de 2,5 s no es un parámetro que un test pueda bajar, y no lo será: un
 test que necesite tiempo mueve el reloj, no el freno.
+
+Lo que sí es un parámetro es el TTL de la caché y el ancho de su clave, y por
+eso los tests de la caché se escriben **sobre el parámetro** y no sobre el
+valor que tenga hoy: el día que la clave se ensanche a provincia, se cambia un
+valor y los tests siguen diciendo lo mismo.
 
 ### Dos proyectos: `servidor` e `interfaz`
 
@@ -86,6 +108,34 @@ que una respuesta que cambie de forma no compile.
 
 No se añaden más costuras, y no se intercepta a nivel de red (MSW): añade una
 capa que hay que depurar aparte y no cubre el reloj.
+
+**El almacén compartido no es una tercera costura.** El de memoria es código
+de producción —es el que corre en `npm run dev`— y el de Redis se construye
+por encima del `fetch`, o sea de la costura que ya había: los tests lo
+ejercitan de verdad, con un Redis de mentira que habla su protocolo REST.
+`pruebas/almacen.test.ts` pasa la misma batería a los dos, que es lo que hace
+que probar contra el de memoria diga algo sobre el que va desplegado.
+
+### La única excepción: el techo del freno
+
+Dos tests de `pruebas/cache-y-freno.test.ts` no montan la aplicación y hablan
+con `crearFrenoCompartido` directamente. Está escrito aquí porque saltarse la
+regla en silencio es peor que la excepción:
+
+- **El techo de dos minutos no se ve desde arriba.** Quien pide ficha se rinde
+  a los quince segundos, así que en cuanto el ritmo se endurece de verdad deja
+  de haber peticiones —y de haber vacíos que lo endurezcan más—. Por encima de
+  la costura, cualquier techo entre quince segundos y dos minutos se comporta
+  igual. Medirlo exige preguntarle al freno.
+- **Endurecerlo con búsquedas de verdad lo decide el jitter.** Con el ritmo ya
+  doblado, la pausa que sale cae a un lado o a otro del plazo según el azar, y
+  el test pasaría unas veces sí y otras no. Se le anotan los vacíos al freno y
+  se acabó la moneda al aire.
+
+Todo lo demás —caché, single-flight, ritmo, servir viejo, no saltarse el
+freno— entra por `montarApp()` y se mide contando peticiones en el `fetch`
+falso. Si mañana aparece una forma de ver el techo desde arriba, estos dos
+tests sobran.
 
 ### Qué es un buen test aquí
 

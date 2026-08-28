@@ -169,8 +169,10 @@ describe('el trato con el SEPE', () => {
   it('abre una sesión por búsqueda y no la arrastra a la siguiente', async () => {
     const montaje = montar()
 
+    // Dos trámites distintos, y no dos veces el mismo, porque el mismo saldría
+    // de la caché: sin consulta no hay sesión que mirar.
     await dejarCorrer(montaje.reloj, montaje.app.buscador.buscar(CON_HUECO))
-    await dejarCorrer(montaje.reloj, montaje.app.buscador.buscar(CON_HUECO))
+    await dejarCorrer(montaje.reloj, montaje.app.buscador.buscar(SIN_HUECO))
 
     expect(sesionesAbiertas(montaje.fetch)).toBe(2)
   })
@@ -178,16 +180,17 @@ describe('el trato con el SEPE', () => {
   it('nunca lanza dos peticiones con menos de 2,5 segundos entre ellas, y la pausa lleva jitter', async () => {
     const montaje = montar()
 
-    // Tres búsquedas seguidas: siete peticiones al SEPE contando las portadas,
-    // que es de donde salen las seis pausas que se miden.
-    for (const consulta of [CON_HUECO, SIN_HUECO, CON_HUECO]) {
+    // Dos búsquedas de trámites distintos: cinco peticiones al SEPE contando
+    // las portadas, que es de donde salen las cuatro pausas que se miden.
+    // Repetir una consulta no serviría: la segunda vez sale de la caché.
+    for (const consulta of [CON_HUECO, SIN_HUECO]) {
       await dejarCorrer(montaje.reloj, montaje.app.buscador.buscar(consulta))
     }
 
     const instantes = alSepe(montaje.fetch).map((l) => l.instante)
     const pausas = instantes.slice(1).map((instante, i) => instante - instantes[i])
 
-    expect(pausas).toHaveLength(6)
+    expect(pausas).toHaveLength(4)
     expect(Math.min(...pausas)).toBeGreaterThanOrEqual(PAUSA_MINIMA_MS)
     // Que la pausa lleve jitter es que alguna pase del mínimo —una petición
     // cada 2,5 segundos clavados no la hace ningún humano, y es justo el patrón

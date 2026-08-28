@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { crearAlmacenRedis } from '@/almacen/redis'
 import { POST } from '@/app/api/oficinas/route'
 import { dejarCorrer } from './ayudantes/dejar-correr'
+import { alSepe } from './ayudantes/fetch-falso'
 import { geocodificadorConoce } from './ayudantes/geocodificador-falso'
 import { montarApp, type AppDePrueba, type OpcionesDeMontaje } from './ayudantes/montar-app'
+import { crearRedisAveriado, FICHA_DE_REDIS, URL_DE_REDIS } from './ayudantes/redis-falso'
 import {
   nivelesDelSepe,
   portadaDelSepe,
@@ -210,6 +213,29 @@ describe('las oficinas del primer trámite cuando algo va mal', () => {
     })
 
     expect(cuerpo.estado).toBe('sepe-no-responde')
+  })
+
+  it('sin fichas del freno se pide volver en un momento, y no es un 500', async () => {
+    // El catálogo es lo primero que sale, y descubrirlo son diez fichas
+    // seguidas: es justo lo que se queda sin ellas cuando el servicio va
+    // lleno. Con el almacén compartido caído no hay forma de saber a quién le
+    // toca, así que no se llama al SEPE.
+    //
+    // Importa que salga por aquí y no por arriba: un `SinFicha` sin recoger
+    // era un 500 —una avería nuestra— en la portada, cuando lo que pasa es
+    // que ahora mismo hay cola.
+    const { respuesta, cuerpo, fetch } = await pedirOficinas('08401', {
+      almacen: crearAlmacenRedis({
+        fetch: crearRedisAveriado(),
+        url: URL_DE_REDIS,
+        ficha: FICHA_DE_REDIS,
+      }),
+    })
+
+    expect(respuesta.status).toBe(200)
+    expect(cuerpo.estado).toBe('vuelve-en-un-momento')
+    expect(cuerpo.oficinas).toEqual([])
+    expect(alSepe(fetch)).toEqual([])
   })
 
   it('el catálogo sale bien y el mapa se cae: la avería es la del mapa', async () => {

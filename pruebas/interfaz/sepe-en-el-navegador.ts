@@ -38,6 +38,8 @@ export function respuesta(parcial: Partial<BusquedaDelPrimerTramite> = {}): Busq
     estado: 'ok',
     consultadoEn: Date.parse('2026-08-14T13:37:10+02:00'),
     tramite: { id: 631, nombre: 'Voy a salir al extranjero' },
+    desdeCache: false,
+    caducada: false,
     localizacion: {
       lat: 41.6083,
       lng: 2.2875,
