@@ -45,6 +45,17 @@ const SUBTRAMITES = '/cita/cargarComboGruposTramitesByNivel'
  */
 const COMBO_DEL_NIVEL_TRES = 'comboTiposServicios'
 
+/**
+ * De qué nivel se pide el combo y de qué cuelga. El nivel 1 no cuelga de nada y
+ * manda `idsNiveles` vacío, que es lo que el SEPE espera: el tipo lo dice para
+ * que no se pueda mandar cualquier cosa ahí.
+ */
+interface PeticionDeNiveles {
+  nivel: 1 | 2
+  idNivel?: number
+  idsNiveles: number | ''
+}
+
 /** Lo que contestan los niveles 1 y 2. Solo se declara lo que se usa. */
 interface RespuestaDeNiveles {
   listaNivelesTramites?: { idServicio: number; auxServicio?: string }[]
@@ -77,7 +88,7 @@ export async function ramasDelCatalogo(sesion: SesionSepe, codigoPostal: string)
 async function nivelesDe(
   sesion: SesionSepe,
   codigoPostal: string,
-  cual: { nivel: 1 | 2; idNivel?: number; idsNiveles: number | string },
+  peticion: PeticionDeNiveles,
 ): Promise<Opcion[]> {
   const respuesta = await sesion.json<RespuestaDeNiveles>(NIVELES, {
     codigoPostal,
@@ -85,7 +96,7 @@ async function nivelesDe(
     origen: 'sepe',
     usaOrdenManual: 'true',
     codigoEntidad: '',
-    ...cual,
+    ...peticion,
   })
 
   // `auxServicio` es el nombre tal como lo llama el SEPE, que es justo por el

@@ -48,6 +48,32 @@ describe('los `<option>` del nivel 3', () => {
     expect(opcionesDe(html)).toEqual([{ id: 61, nombre: 'Cobros indebidos, sanciones y otras incidencias' }])
   })
 
+  it('encuentra el identificador aunque no sea el primer atributo', () => {
+    // El orden de los atributos es cosa del SEPE y no avisa. Un patrón que lo
+    // diera por hecho devolvería la lista vacía sin decir nada, y el árbol
+    // saldría sin subtrámites con cara de estar completo: la avería silenciosa
+    // que este módulo existe para no tener.
+    const html = '<option data-esservicio="true" value="41" data-ids-jerarquia-tramites="5">Subsidio para mayores de 52</option>'
+
+    expect(opcionesDe(html)).toEqual([{ id: 41, nombre: 'Subsidio para mayores de 52' }])
+  })
+
+  it('deshace también los acentos escritos por número', () => {
+    // La otra forma de escapar que usan los generadores de HTML. Enseñar
+    // `&#39;` a quien está buscando su trámite es enseñarle basura.
+    const html = '<option value="71">Informaci&#243;n general &#x2013; entrega de documentaci&#243;n</option>'
+
+    expect(opcionesDe(html)).toEqual([{ id: 71, nombre: 'Información general – entrega de documentación' }])
+  })
+
+  it('deja tal cual lo que no sabe deshacer, en vez de comérselo', () => {
+    // Menos malo que borrarlo: un nombre con un `&raro;` dentro se lee igual,
+    // y uno al que le falta un trozo puede ser otro trámite.
+    expect(opcionesDe('<option value="9">Algo &raro; aquí</option>')).toEqual([
+      { id: 9, nombre: 'Algo &raro; aquí' },
+    ])
+  })
+
   it('un combo sin opciones es una lista vacía, no un error', () => {
     // Pasa de verdad: hay trámites cuyo combo de subtrámites vuelve vacío.
     expect(opcionesDe('<select id="comboTiposServicios"></select>')).toEqual([])

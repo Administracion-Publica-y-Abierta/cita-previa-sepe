@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { POST } from '@/app/api/tramites/route'
 import { JITTER_MAXIMO_MS, PAUSA_MINIMA_MS } from '@/sepe/freno'
 import { dejarCorrer } from './ayudantes/dejar-correr'
-import type { FetchFalso } from './ayudantes/fetch-falso'
+import { alSepe } from './ayudantes/fetch-falso'
 import { geocodificadorConoce } from './ayudantes/geocodificador-falso'
+import { loQueSeEscribe } from './ayudantes/lo-que-se-escribe'
 import { montarApp, type AppDePrueba, type OpcionesDeMontaje } from './ayudantes/montar-app'
 import {
   nivelesDelSepe,
@@ -56,23 +57,6 @@ async function pedirCatalogo(codigoPostal: string, opciones: OpcionesDeMontaje =
   })
   const respuesta = await dejarCorrer(montaje.reloj, POST(peticion))
   return { ...montaje, respuesta, cuerpo: await respuesta.clone().json(), texto: await respuesta.text() }
-}
-
-/** Solo las peticiones al SEPE: las del geocodificador no llevan freno. */
-function alSepe(fetch: FetchFalso) {
-  return fetch.llamadas.filter((l) => l.url.includes('citapreviasepe'))
-}
-
-/** Lo que la aplicación escriba mientras corre el bloque, línea a línea. */
-async function loQueSeEscribe(bloque: () => Promise<unknown>): Promise<string[]> {
-  const escrito: string[] = []
-  for (const metodo of ['debug', 'log', 'info', 'warn', 'error'] as const) {
-    vi.spyOn(console, metodo).mockImplementation((...partes: unknown[]) => {
-      escrito.push(partes.map(String).join(' '))
-    })
-  }
-  await bloque()
-  return escrito
 }
 
 afterEach(() => {
@@ -170,6 +154,28 @@ describe('el catálogo de trámites de un código postal', () => {
     ])
   })
 
+  it('baja todas las ramas que haya, no solo la primera', async () => {
+    // En las capturas 08401 solo tiene una rama —«PRESTACIONES»— así que el
+    // árbol grabado no dice nada de qué pasa con dos. En otra provincia puede
+    // haberlas, y entonces un catálogo que se quedase en la primera enseñaría
+    // media verdad.
+    const { cuerpo } = await pedirCatalogo('08401', {
+      respuestas: [
+        nivelesDelSepe(1, '', [
+          { id: 900, nombre: 'PRESTACIONES' },
+          { id: 910, nombre: 'EMPLEO' },
+        ]),
+        nivelesDelSepe(2, '900', [{ id: 901, nombre: 'Un trámite de la primera rama' }]),
+        nivelesDelSepe(2, '910', [{ id: 911, nombre: 'Un trámite de la segunda' }]),
+        subtramitesDelSepe(901, [{ id: 902, nombre: 'Su subtrámite' }]),
+        subtramitesDelSepe(911, [{ id: 912, nombre: 'Y el otro' }]),
+      ],
+    })
+
+    expect(cuerpo.ramas.map((r: { nombre: string }) => r.nombre)).toEqual(['PRESTACIONES', 'EMPLEO'])
+    expect(cuerpo.ramas[1].tramites[0].subtramites).toEqual([{ id: 912, nombre: 'Y el otro' }])
+  })
+
   it('deja constancia del instante en que se consultó al SEPE', async () => {
     const { cuerpo, reloj } = await pedirCatalogo('08401')
 
@@ -212,6 +218,20 @@ describe('el catálogo cuando el SEPE no colabora', () => {
     expect(cuerpo.estado).toBe('sepe-no-responde')
     expect(cuerpo.ramas).toEqual([])
     expect(fetch.llamadas.filter((l) => l.endpoint === 'cargarComboGruposTramitesByNivel')).toHaveLength(3)
+  })
+
+  it('un cuerpo vacío en un solo combo deja el catálogo entero en `sin-agenda`', async () => {
+    // Es la decisión del árbol completo llevada hasta el final, y conviene que
+    // esté escrita: siete trámites de ocho han contestado bien, y aun así no se
+    // sirve lo que hay. A un árbol al que le falta una rama no se le nota, y
+    // quien buscase ahí su trámite concluiría que no existe. Decir «ahora no
+    // te puedo contestar» y que lo vuelva a pedir es más caro y más honrado.
+    const { cuerpo } = await pedirCatalogo('08401', {
+      respuestas: [sepeCuerpoVacio('cargarComboGruposTramitesByNivel')],
+    })
+
+    expect(cuerpo.estado).toBe('sin-agenda')
+    expect(cuerpo.ramas).toEqual([])
   })
 
   it('a la tercera se rinde con `sepe-no-responde`', async () => {

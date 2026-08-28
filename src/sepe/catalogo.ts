@@ -1,5 +1,4 @@
-import { CodigoPostalInvalido } from '@/localizacion/geocodificador'
-import { provinciaDe } from '@/localizacion/provincias'
+import { exigirProvincia } from '@/localizacion/geocodificador'
 import type { Reloj } from '@/nucleo/reloj'
 import { SepeNoResponde, SepeSinAgenda, type ClienteSepe } from './cliente'
 import { ramasDelCatalogo, type Rama } from './niveles'
@@ -44,7 +43,7 @@ export function crearCatalogo(piezas: { clienteSepe: ClienteSepe; reloj: Reloj }
     async de(codigoPostal: string): Promise<ArbolDeTramites> {
       // Se comprueba antes de salir: no se le pide al SEPE algo que ya se sabe
       // que no vale, y son diez peticiones frenadas las que se ahorran.
-      if (!provinciaDe(codigoPostal)) throw new CodigoPostalInvalido()
+      exigirProvincia(codigoPostal)
 
       try {
         const ramas = await clienteSepe.enUnaSesion((sesion) => ramasDelCatalogo(sesion, codigoPostal))

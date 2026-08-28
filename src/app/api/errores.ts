@@ -1,3 +1,5 @@
+import { CodigoPostalInvalido } from '@/localizacion/geocodificador'
+
 /**
  * Los errores que la API le enseña a una persona, en un solo sitio.
  *
@@ -16,8 +18,29 @@ export const CODIGO_POSTAL_INVALIDO = {
   mensaje: 'El código postal debe tener cinco dígitos y empezar por una provincia española, del 01 al 52.',
 }
 
-/** El código postal que llega en el cuerpo de un POST, o la cadena vacía. */
-export async function codigoPostalDe(peticion: Request): Promise<string> {
+/**
+ * El esqueleto de las rutas que comen código postal: lo saca del cuerpo del
+ * POST, se lo da a quien conteste y traduce el único error esperable.
+ *
+ * De la URL no se lee nada, ni la cadena de consulta: el alojamiento registra
+ * la URL entera de cada petición solo por existir, así que lo que no se lee de
+ * ahí es lo que no puede acabar escrito.
+ */
+export async function conCodigoPostal(
+  peticion: Request,
+  contestar: (codigoPostal: string) => Promise<unknown>,
+): Promise<Response> {
   const cuerpo = (await peticion.json().catch(() => null)) as { cp?: unknown } | null
-  return typeof cuerpo?.cp === 'string' ? cuerpo.cp : ''
+  const codigoPostal = typeof cuerpo?.cp === 'string' ? cuerpo.cp : ''
+
+  try {
+    return Response.json(await contestar(codigoPostal))
+  } catch (error) {
+    if (error instanceof CodigoPostalInvalido) {
+      return Response.json(CODIGO_POSTAL_INVALIDO, { status: 400 })
+    }
+    // Lo demás sale tal cual: un fallo nuestro no se disfraza de código postal
+    // mal escrito.
+    throw error
+  }
 }

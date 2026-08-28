@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { distanciaEnKm } from '@/localizacion/distancia'
 import { JITTER_MAXIMO_MS, PAUSA_MINIMA_MS } from '@/sepe/freno'
 import { dejarCorrer } from './ayudantes/dejar-correr'
-import type { FetchFalso } from './ayudantes/fetch-falso'
+import { alSepe, type FetchFalso } from './ayudantes/fetch-falso'
 import { geocodificadorConoce } from './ayudantes/geocodificador-falso'
 import { montarApp, type AppDePrueba, type OpcionesDeMontaje } from './ayudantes/montar-app'
 import { portadaDelSepe, sepeCuerpoVacio, sepeSaturado, sepeSinOficinas } from './ayudantes/sepe-falso'
@@ -39,11 +39,6 @@ async function buscar(consulta: { codigoPostal: string; idTramite: number }, opc
   const montaje = montar(opciones)
   const busqueda = await dejarCorrer(montaje.reloj, montaje.app.buscador.buscar(consulta))
   return { ...montaje, busqueda }
-}
-
-/** Solo las peticiones al SEPE: las del geocodificador no llevan freno. */
-function alSepe(fetch: FetchFalso) {
-  return fetch.llamadas.filter((l) => l.url.includes('citapreviasepe'))
 }
 
 function vecesQueSePidio(fetch: FetchFalso, endpoint: string): number {

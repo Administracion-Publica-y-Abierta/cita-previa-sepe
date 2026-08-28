@@ -14,12 +14,25 @@ export interface Opcion {
 }
 
 /**
- * Los atributos vienen repartidos en varias líneas y son media docena
- * (`data-esservicio`, `data-id-entidad-oficina`...), así que se salta todo
- * hasta el `>`. El valor tiene que ser un número: el `<option value="">` del
- * «--- Seleccionar ---» no es un trámite y se queda fuera por aquí.
+ * La etiqueta entera con sus atributos por un lado y su texto por otro. Los
+ * atributos vienen repartidos en varias líneas y son media docena
+ * (`data-esservicio`, `data-id-entidad-oficina`...), así que se cogen en bloque.
  */
-const OPCION = /<option\s+value="(\d+)"[^>]*>([\s\S]*?)<\/option>/g
+const OPCION = /<option\b([^>]*)>([\s\S]*?)<\/option>/g
+
+/**
+ * El identificador, se escriba donde se escriba dentro de la etiqueta.
+ *
+ * Se busca dentro del bloque de atributos y no exigiéndole ser el primero: si el
+ * SEPE los reordenase —que es cosa suya y no avisa—, un patrón que diera por
+ * hecho el orden devolvería la lista vacía **sin decir nada**, y el árbol
+ * saldría con trámites sin subtrámites y cara de estar completo. Es justo la
+ * avería silenciosa que este módulo existe para no tener.
+ *
+ * Tiene que ser un número: el `<option value="">` del «--- Seleccionar ---» no
+ * es un trámite y se queda fuera por aquí.
+ */
+const VALOR = /\bvalue\s*=\s*"(\d+)"/
 
 /**
  * Las entidades que el SEPE usa de verdad en los nombres de sus trámites. La
@@ -40,6 +53,16 @@ const ENTIDADES: Record<string, string> = {
   uacute: 'ú',
   ntilde: 'ñ',
   uuml: 'ü',
+  ccedil: 'ç',
+  agrave: 'à',
+  egrave: 'è',
+  igrave: 'ì',
+  ograve: 'ò',
+  ugrave: 'ù',
+  Ccedil: 'Ç',
+  Agrave: 'À',
+  Egrave: 'È',
+  Ograve: 'Ò',
   Aacute: 'Á',
   Eacute: 'É',
   Iacute: 'Í',
@@ -70,8 +93,11 @@ const ENTIDAD = /&(#\d+|#[xX][0-9a-fA-F]+|\w+);/g
  */
 export function opcionesDe(html: string): Opcion[] {
   return [...html.matchAll(OPCION)]
-    .map(([, valor, etiqueta]) => ({ id: Number(valor), nombre: comoSeLee(etiqueta) }))
-    .filter((opcion) => opcion.nombre !== '')
+    .map(([, atributos, etiqueta]) => ({
+      id: Number(VALOR.exec(atributos)?.[1]),
+      nombre: comoSeLee(etiqueta),
+    }))
+    .filter((opcion) => Number.isFinite(opcion.id) && opcion.nombre !== '')
 }
 
 /**

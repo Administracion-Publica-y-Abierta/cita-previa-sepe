@@ -1,7 +1,7 @@
 import type { Fetch } from '@/nucleo/dependencias'
 import { registro } from '@/nucleo/registro'
 import type { Coordenadas } from './distancia'
-import { provinciaDe } from './provincias'
+import { provinciaDe, type Provincia } from './provincias'
 
 /** Dónde cae un código postal, y con cuánta confianza. */
 export interface Localizacion extends Coordenadas {
@@ -27,6 +27,19 @@ export class CodigoPostalInvalido extends Error {
 
 export interface Geocodificador {
   localizar(codigoPostal: string): Promise<Localizacion>
+}
+
+/**
+ * La provincia de un código postal, o el error si no lo es.
+ *
+ * Está aquí y no repetida en cada sitio que come código postal porque la
+ * pregunta «¿esto vale?» tiene que tener una sola respuesta: el día que cambie
+ * —un dígito más, un rango nuevo— cambia una vez y la heredan todos.
+ */
+export function exigirProvincia(codigoPostal: string): Provincia {
+  const provincia = provinciaDe(codigoPostal)
+  if (!provincia) throw new CodigoPostalInvalido()
+  return provincia
 }
 
 const SERVICIO = 'https://api.zippopotam.us/es'
@@ -58,8 +71,7 @@ interface RespuestaDelServicio {
 export function crearGeocodificador({ fetch }: { fetch: Fetch }): Geocodificador {
   return {
     async localizar(codigoPostal: string): Promise<Localizacion> {
-      const provincia = provinciaDe(codigoPostal)
-      if (!provincia) throw new CodigoPostalInvalido()
+      const provincia = exigirProvincia(codigoPostal)
 
       const exacta = await preguntarAlServicio(fetch, codigoPostal)
       if (!exacta) {

@@ -36,6 +36,14 @@ export type FetchFalso = Fetch & {
   llamadas: Llamada[]
 }
 
+/**
+ * Solo las peticiones al SEPE: las del geocodificador salen por el mismo
+ * `fetch` y no llevan freno, así que contarlas juntas mediría otra cosa.
+ */
+export function alSepe(fetch: FetchFalso): Llamada[] {
+  return fetch.llamadas.filter((llamada) => llamada.url.includes('citapreviasepe'))
+}
+
 function endpointDe(url: string): string {
   return new URL(url).pathname.split('/').pop() ?? ''
 }

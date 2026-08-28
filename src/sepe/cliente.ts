@@ -14,6 +14,14 @@ const AGENTE =
 const ID_CLIENTE = 39
 
 /**
+ * Lo que cada llamada dice que espera. No es lo mismo en las dos, y no es un
+ * detalle: en las capturas, la llamada del combo de subtrámites pide HTML y
+ * las de JSON piden JSON. Se le manda al SEPE lo que él mismo se manda.
+ */
+const ACEPTA_JSON = 'application/json, text/javascript, */*; q=0.01'
+const ACEPTA_HTML = 'text/html, */*; q=0.01'
+
+/**
  * Cuántas veces se insiste ante una respuesta que no es JSON.
  *
  * Tres, y no más, porque cada intento cuesta una sesión nueva y dos pausas del
@@ -96,7 +104,7 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
     abierta = true
   }
 
-  async function postear(ruta: string, parametros: Parametros): Promise<Contestacion> {
+  async function postear(ruta: string, parametros: Parametros, acepta: string): Promise<Contestacion> {
     if (!abierta) await abrir()
     await freno.fichar()
 
@@ -104,7 +112,7 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
       method: 'POST',
       headers: {
         'user-agent': AGENTE,
-        accept: 'application/json, text/javascript, */*; q=0.01',
+        accept: acepta,
         'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'x-requested-with': 'XMLHttpRequest',
         origin: 'https://citaprevia-sede.sepe.gob.es',
@@ -129,6 +137,7 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
   async function insistir<T>(
     ruta: string,
     parametros: Parametros,
+    acepta: string,
     interpretar: (cuerpo: string) => T,
   ): Promise<T> {
     for (let intento = 1; ; intento += 1) {
@@ -136,7 +145,7 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
       // aquí tal cual. Convertirlo en `sepe-no-responde` taparía también el
       // error del `fetch` falso que avisa de que a un test le falta una
       // grabación, que es justo el aviso que no se puede perder.
-      const { ok, cuerpo } = await postear(ruta, parametros)
+      const { ok, cuerpo } = await postear(ruta, parametros, acepta)
 
       if (ok && !cuerpo.trim()) throw new SepeSinAgenda()
 
@@ -164,11 +173,11 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
 
   return {
     json<T>(ruta: string, parametros: Parametros): Promise<T> {
-      return insistir(ruta, parametros, (cuerpo) => JSON.parse(cuerpo) as T)
+      return insistir(ruta, parametros, ACEPTA_JSON, (cuerpo) => JSON.parse(cuerpo) as T)
     },
 
     html(ruta: string, parametros: Parametros, senal: string): Promise<string> {
-      return insistir(ruta, parametros, (cuerpo) => {
+      return insistir(ruta, parametros, ACEPTA_HTML, (cuerpo) => {
         if (!cuerpo.includes(senal)) throw new Error('no es la respuesta que se esperaba')
         return cuerpo
       })

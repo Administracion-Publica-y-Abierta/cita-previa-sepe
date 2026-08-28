@@ -1,6 +1,5 @@
-import { CodigoPostalInvalido } from '@/localizacion/geocodificador'
 import { appDeProduccion } from '@/nucleo/app-de-produccion'
-import { CODIGO_POSTAL_INVALIDO, codigoPostalDe } from '../errores'
+import { conCodigoPostal } from '../errores'
 
 /**
  * `POST /api/localizacion` con `{"cp": "08401"}` → dónde cae ese código postal.
@@ -17,15 +16,6 @@ import { CODIGO_POSTAL_INVALIDO, codigoPostalDe } from '../errores'
  * guardar en favoritos. Aquí no hace falta: el hero recuerda el último código
  * postal en el propio navegador.
  */
-export async function POST(peticion: Request): Promise<Response> {
-  const codigoPostal = await codigoPostalDe(peticion)
-
-  try {
-    return Response.json(await appDeProduccion().geocodificador.localizar(codigoPostal))
-  } catch (error) {
-    if (error instanceof CodigoPostalInvalido) {
-      return Response.json(CODIGO_POSTAL_INVALIDO, { status: 400 })
-    }
-    throw error
-  }
+export function POST(peticion: Request): Promise<Response> {
+  return conCodigoPostal(peticion, (codigoPostal) => appDeProduccion().geocodificador.localizar(codigoPostal))
 }

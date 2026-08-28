@@ -6,6 +6,7 @@ import {
   geocodificadorNoConoce,
   geocodificadorSinCoordenadas,
 } from './ayudantes/geocodificador-falso'
+import { loQueSeEscribe } from './ayudantes/lo-que-se-escribe'
 import { montarApp, type OpcionesDeMontaje } from './ayudantes/montar-app'
 
 /** El código postal de las capturas: Granollers, provincia de Barcelona. */
@@ -34,18 +35,6 @@ async function pedirConCuerpo(cuerpoCrudo: string, opciones: OpcionesDeMontaje =
 }
 
 const URL_DE_LA_RUTA = 'http://localhost/api/localizacion'
-
-/** Lo que la aplicación escriba mientras corre el bloque, línea a línea. */
-async function loQueSeEscribe(bloque: () => Promise<unknown>): Promise<string[]> {
-  const escrito: string[] = []
-  for (const metodo of ['debug', 'log', 'info', 'warn', 'error'] as const) {
-    vi.spyOn(console, metodo).mockImplementation((...partes: unknown[]) => {
-      escrito.push(partes.map(String).join(' '))
-    })
-  }
-  await bloque()
-  return escrito
-}
 
 afterEach(() => {
   vi.restoreAllMocks()

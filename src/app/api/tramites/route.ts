@@ -1,6 +1,5 @@
-import { CodigoPostalInvalido } from '@/localizacion/geocodificador'
 import { appDeProduccion } from '@/nucleo/app-de-produccion'
-import { CODIGO_POSTAL_INVALIDO, codigoPostalDe } from '../errores'
+import { conCodigoPostal } from '../errores'
 
 /**
  * `POST /api/tramites` con `{"cp": "08401"}` → el árbol de trámites que el SEPE
@@ -19,15 +18,6 @@ import { CODIGO_POSTAL_INVALIDO, codigoPostalDe } from '../errores'
  * mucho y se sirve de ahí. Lo que no se hace, por mucho que abarate, es volver
  * a escribir los identificadores a mano.
  */
-export async function POST(peticion: Request): Promise<Response> {
-  const codigoPostal = await codigoPostalDe(peticion)
-
-  try {
-    return Response.json(await appDeProduccion().catalogo.de(codigoPostal))
-  } catch (error) {
-    if (error instanceof CodigoPostalInvalido) {
-      return Response.json(CODIGO_POSTAL_INVALIDO, { status: 400 })
-    }
-    throw error
-  }
+export function POST(peticion: Request): Promise<Response> {
+  return conCodigoPostal(peticion, (codigoPostal) => appDeProduccion().catalogo.de(codigoPostal))
 }
