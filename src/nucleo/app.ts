@@ -1,4 +1,7 @@
 import { crearGeocodificador, type Geocodificador } from '@/localizacion/geocodificador'
+import { crearBuscador, type Buscador } from '@/sepe/buscador'
+import { crearClienteSepe } from '@/sepe/cliente'
+import { crearFrenoEnMemoria } from '@/sepe/freno'
 import type { Dependencias } from './dependencias'
 
 /**
@@ -14,11 +17,22 @@ export interface App {
   dependencias: Dependencias
   /** Código postal → coordenadas, con el centroide provincial de reserva. */
   geocodificador: Geocodificador
+  /** Código postal y trámite → oficinas de la zona con su primer hueco. */
+  buscador: Buscador
 }
 
 export function crearApp(dependencias: Dependencias): App {
+  const geocodificador = crearGeocodificador(dependencias)
+
+  // El freno se arma aquí, uno por aplicación, porque el ritmo es de todo el
+  // proceso y no de cada búsqueda. Es también el punto por el que entrará el
+  // cubo de fichas compartido: en serverless esta memoria no sobrevive entre
+  // invocaciones, y dos visitantes a la vez son dos peticiones a la vez.
+  const clienteSepe = crearClienteSepe(dependencias.fetch, crearFrenoEnMemoria(dependencias.reloj))
+
   return {
     dependencias,
-    geocodificador: crearGeocodificador(dependencias),
+    geocodificador,
+    buscador: crearBuscador({ clienteSepe, geocodificador, reloj: dependencias.reloj }),
   }
 }
