@@ -19,7 +19,7 @@ acelerar el ritmo de peticiones al SEPE no es de estilo y no se negocia.
 | Orden | Para qué |
 |---|---|
 | `npm run dev` | Levanta la aplicación en desarrollo. |
-| `npm test` | Toda la batería de tests. |
+| `npm test` | Toda la batería de tests. Levanta la aplicación y un Chromium: ver abajo. |
 | `npm run tipos` | Comprobación de tipos. |
 | `npm run lint` | Reglas de estilo. |
 | `npm run fixtures -- <ruta>` | Rehace los fixtures desde las capturas `.har`. |
@@ -283,6 +283,46 @@ Uno que solo mira **comportamiento externo**: entra un código postal, salen
 unas oficinas. Nada de comprobar que se llamó a tal función interna, ni cuántas
 veces, ni con qué argumentos. En cuanto existan Route Handlers, casi todos los
 tests entran por ellos.
+
+### La prueba de navegador
+
+Hay **una**, en `pruebas/navegador/`, y el tope es **dos**. Recorre el camino
+feliz en un Chromium de verdad: se escribe un código postal, salen las
+oficinas, se ven los pines en el mapa y al filtrar quedan menos.
+
+Existe por una sola razón: **en jsdom no hay WebGL, así que el mapa nunca se
+monta**. Todo lo que hay entre `new Map()` y un pin pintado —la descarga de
+MapLibre, el worker que copia `scripts/copiar-el-mapa.mjs`, el lienzo— no se
+puede mirar de ninguna otra forma, y este proyecto ya sabe lo que es un mapa
+que falla en silencio. Lo demás no entra aquí: entra por los Route Handlers
+con el `fetch` grabado, que es donde sale barato.
+
+Se ejecuta con `npm test` como los demás; `pretest` se encarga de que el
+Chromium esté instalado —la primera vez en una máquina son unos 100 MB de
+descarga; después es una comprobación de un cuarto de segundo—. Lo que hace por
+debajo:
+
+- Levanta `next dev` en un puerto libre y espera a que conteste. Es
+  `pruebas/navegador/el-servidor.ts`, el `globalSetup` del proyecto
+  `navegador` de `vitest.config.mts`.
+- Corta la red del navegador: **solo pasan la propia aplicación y el estilo
+  del mapa de fondo**, que se contesta desde el test. Todo lo demás se aborta
+  y se apunta, y la prueba comprueba al final que no se ha apuntado nada.
+- `POST /api/busqueda` la contesta el Route Handler de verdad montado con
+  `montarApp()`, desde el proceso del test. Es el mismo patrón de siempre, y
+  es lo que hace que la pasada no cueste los cuarenta segundos de freno que
+  costaría con el reloj de pared.
+- El mapa se mira como lo mira quien tiene la pantalla delante: se captura la
+  región y se cuentan los píxeles del verde de «con hueco». Un lienzo de WebGL
+  no tiene nodos que buscar. Se cuenta cuando el dibujo ha dejado de cambiar,
+  porque la geometría de los grupos la calcula el worker de MapLibre y una
+  captura suelta puede pillar la mitad de los puntos pintados.
+
+La línea `.next/dev/dev/types/**/*.ts` de `tsconfig.json` la escribe `next` él
+solo la primera vez que arranca, y va commiteada por eso: sin ella, cada `npm
+test` —que ahora levanta la aplicación— dejaría `tsconfig.json` modificado en
+el `git status` de quien los ejecute. No se le puede poner un comentario al
+lado: `next` reescribe ese fichero como JSON y se los comería.
 
 ## Los fixtures
 
