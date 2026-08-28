@@ -14,7 +14,22 @@ import { describe, expect, it } from 'vitest'
  */
 const SRC = join(import.meta.dirname, '..', 'src')
 
-describe('el código postal no puede acabar en la ruta de una URL nuestra', () => {
+describe('el código postal no puede acabar en ninguna URL nuestra', () => {
+  it('ninguna ruta de /api contesta a GET', () => {
+    // El alojamiento registra la URL entera de cada petición —la cadena de
+    // consulta incluida— solo por existir. A un GET solo se le puede dar el
+    // código postal por la URL, así que aquí las rutas van por el cuerpo de un
+    // POST, que no se registra.
+    //
+    // Vale para el catálogo y para la búsqueda igual que para la localización:
+    // todas comen código postal. El día que haga falta un GET que no lleve
+    // datos de nadie, esta comprobación se estrecha; no se borra.
+    const conGet = ficherosDe(join(SRC, 'app', 'api'))
+      .filter((fichero) => /export\s+(async\s+)?function\s+GET\b/.test(readFileSync(fichero, 'utf8')))
+
+    expect(conGet.map((fichero) => fichero.slice(SRC.length + 1))).toEqual([])
+  })
+
   it('no hay ningún segmento dinámico bajo /api', () => {
     // Un `[segmento]` es exactamente eso: el dato en la ruta. Y el alojamiento
     // registra la ruta de cada petición sin que nadie se lo pida, así que

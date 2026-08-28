@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { GET } from '@/app/api/localizacion/route'
+import { POST } from '@/app/api/localizacion/route'
 import {
   geocodificadorAveriado,
   geocodificadorConoce,
@@ -16,11 +16,24 @@ const GRANOLLERS = { municipio: 'Granollers', lat: 41.6083, lng: 2.2875 }
  * patrón de este repositorio y además es lo único que prueba las dos reglas de
  * protección de datos, que viven en la frontera.
  */
-async function pedirLocalizacion(consulta: string, opciones: OpcionesDeMontaje = {}) {
+async function pedirLocalizacion(codigoPostal: string, opciones: OpcionesDeMontaje = {}) {
+  return pedirConCuerpo(JSON.stringify({ cp: codigoPostal }), opciones)
+}
+
+/** Para los cuerpos que no tienen la forma buena, que también hay que aguantar. */
+async function pedirConCuerpo(cuerpoCrudo: string, opciones: OpcionesDeMontaje = {}, url = URL_DE_LA_RUTA) {
   const montaje = montarApp(opciones)
-  const respuesta = await GET(new Request(`http://localhost/api/localizacion${consulta}`))
+  const respuesta = await POST(
+    new Request(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: cuerpoCrudo,
+    }),
+  )
   return { ...montaje, respuesta, cuerpo: await respuesta.clone().json(), texto: await respuesta.text() }
 }
+
+const URL_DE_LA_RUTA = 'http://localhost/api/localizacion'
 
 /** Lo que la aplicación escriba mientras corre el bloque, línea a línea. */
 async function loQueSeEscribe(bloque: () => Promise<unknown>): Promise<string[]> {
@@ -40,7 +53,7 @@ afterEach(() => {
 
 describe('la localización de un código postal', () => {
   it('devuelve coordenadas y municipio, marcados como exactos', async () => {
-    const { respuesta, cuerpo, fetch } = await pedirLocalizacion('?cp=08401', {
+    const { respuesta, cuerpo, fetch } = await pedirLocalizacion('08401', {
       respuestas: [geocodificadorConoce('08401', GRANOLLERS)],
     })
 
@@ -58,7 +71,7 @@ describe('la localización de un código postal', () => {
   })
 
   it('cae al centroide de la provincia, y lo marca aproximado, si el geocodificador no lo conoce', async () => {
-    const { respuesta, cuerpo } = await pedirLocalizacion('?cp=28999', {
+    const { respuesta, cuerpo } = await pedirLocalizacion('28999', {
       respuestas: [geocodificadorNoConoce('28999')],
     })
 
@@ -73,7 +86,7 @@ describe('la localización de un código postal', () => {
   })
 
   it('cae también al centroide si el geocodificador está caído', async () => {
-    const { respuesta, cuerpo } = await pedirLocalizacion('?cp=15001', {
+    const { respuesta, cuerpo } = await pedirLocalizacion('15001', {
       respuestas: [geocodificadorAveriado('15001')],
     })
 
@@ -83,7 +96,7 @@ describe('la localización de un código postal', () => {
   })
 
   it('cae al centroide si el geocodificador contesta algo que no se entiende', async () => {
-    const { respuesta, cuerpo } = await pedirLocalizacion('?cp=46001', {
+    const { respuesta, cuerpo } = await pedirLocalizacion('46001', {
       respuestas: [geocodificadorSinCoordenadas('46001')],
     })
 
@@ -95,7 +108,7 @@ describe('la localización de un código postal', () => {
   it('cae al centroide si ni siquiera se puede salir a la red', async () => {
     // Sin respuesta a mano, el `fetch` falso lanza: es la forma que tiene aquí
     // un error de red, y el resultado debe ser el mismo que con un 503.
-    const { respuesta, cuerpo } = await pedirLocalizacion('?cp=41001')
+    const { respuesta, cuerpo } = await pedirLocalizacion('41001')
 
     expect(respuesta.status).toBe(200)
     expect(cuerpo.precision).toBe('aproximada-provincial')
@@ -103,7 +116,7 @@ describe('la localización de un código postal', () => {
   })
 
   it('marca exacta la localización aunque el geocodificador no dé nombre de municipio', async () => {
-    const { cuerpo } = await pedirLocalizacion('?cp=08401', {
+    const { cuerpo } = await pedirLocalizacion('08401', {
       respuestas: [geocodificadorConoce('08401', { ...GRANOLLERS, municipio: '' })],
     })
 
@@ -117,22 +130,30 @@ describe('la localización de un código postal', () => {
 
 describe('el código postal que llega mal', () => {
   it('se rechaza si no son cinco dígitos', async () => {
-    const { respuesta, fetch } = await pedirLocalizacion('?cp=841')
+    const { respuesta, fetch } = await pedirLocalizacion('841')
 
     expect(respuesta.status).toBe(400)
     // No se sale a la red por algo que ya se sabe que no vale.
     expect(fetch.llamadas).toHaveLength(0)
   })
 
-  it('se rechaza si falta, y se rechaza si viene vacío', async () => {
+  it('se rechaza si falta, si viene vacío o si no es ni una cadena', async () => {
     expect((await pedirLocalizacion('')).respuesta.status).toBe(400)
-    expect((await pedirLocalizacion('?cp=')).respuesta.status).toBe(400)
+    expect((await pedirConCuerpo('{}')).respuesta.status).toBe(400)
+    // Un número con cinco dígitos es la forma fácil de colarse por un `typeof`
+    // que no se mira.
+    expect((await pedirConCuerpo('{"cp":8401}')).respuesta.status).toBe(400)
+  })
+
+  it('se rechaza sin reventar si el cuerpo no es ni JSON', async () => {
+    expect((await pedirConCuerpo('esto no es json')).respuesta.status).toBe(400)
+    expect((await pedirConCuerpo('')).respuesta.status).toBe(400)
   })
 
   it('se rechaza si los dos primeros dígitos no son una provincia española', async () => {
     // 99 no existe. Antes esto acababa en el centroide de Madrid, que es peor
     // que un error: sitúa a alguien a 600 km sin decírselo.
-    const { respuesta, cuerpo } = await pedirLocalizacion('?cp=99999')
+    const { respuesta, cuerpo } = await pedirLocalizacion('99999')
 
     expect(respuesta.status).toBe(400)
     expect(cuerpo.error).toBe('codigo-postal-invalido')
@@ -140,9 +161,18 @@ describe('el código postal que llega mal', () => {
 })
 
 describe('las dos reglas de protección de datos', () => {
-  // La tercera —que el código postal no viaje nunca en la ruta de la URL— se
-  // comprueba sobre el propio código en `proteccion-de-datos.test.ts`: lo que
-  // hay que impedir es la ruta que nadie ha escrito todavía.
+  // La tercera —que el código postal no viaje nunca en la URL— se comprueba
+  // además sobre el propio código en `proteccion-de-datos.test.ts`: lo que hay
+  // que impedir es la ruta que nadie ha escrito todavía.
+
+  it('no lee el código postal de la URL aunque se lo pongan ahí', async () => {
+    // Si algún día alguien vuelve a leer la cadena de consulta, esto lo caza:
+    // el alojamiento registra la URL entera y ahí quedaría escrito.
+    const { respuesta, fetch } = await pedirConCuerpo('{}', {}, `${URL_DE_LA_RUTA}?cp=08401`)
+
+    expect(respuesta.status).toBe(400)
+    expect(fetch.llamadas).toHaveLength(0)
+  })
 
   it('no escribe el código postal en ningún registro, falle como falle el geocodificador', async () => {
     const casos = [
@@ -152,7 +182,7 @@ describe('las dos reglas de protección de datos', () => {
     ]
 
     for (const caso of casos) {
-      const escrito = await loQueSeEscribe(() => pedirLocalizacion('?cp=08401', { respuestas: [caso] }))
+      const escrito = await loQueSeEscribe(() => pedirLocalizacion('08401', { respuestas: [caso] }))
 
       // Que haya escrito algo forma parte de la prueba: si un día se deja de
       // avisar, este test pasaría solo y sin decir nada.
@@ -163,7 +193,7 @@ describe('las dos reglas de protección de datos', () => {
   })
 
   it('tampoco lo escribe cuando no se puede salir a la red', async () => {
-    const escrito = await loQueSeEscribe(() => pedirLocalizacion('?cp=08401'))
+    const escrito = await loQueSeEscribe(() => pedirLocalizacion('08401'))
 
     expect(escrito.length).toBeGreaterThan(0)
     expect(escrito.join('\n')).not.toContain('08401')
@@ -171,15 +201,14 @@ describe('las dos reglas de protección de datos', () => {
 
   it('no escribe nada cuando todo va bien', async () => {
     const escrito = await loQueSeEscribe(() =>
-      pedirLocalizacion('?cp=08401', { respuestas: [geocodificadorConoce('08401', GRANOLLERS)] }),
+      pedirLocalizacion('08401', { respuestas: [geocodificadorConoce('08401', GRANOLLERS)] }),
     )
 
     expect(escrito).toEqual([])
   })
 
   it('devuelve mensajes de error sin nada de lo que haya tecleado quien pregunta', async () => {
-    const veneno = '<script>alert(1)</script>'
-    const { respuesta, texto } = await pedirLocalizacion(`?cp=${encodeURIComponent(veneno)}`)
+    const { respuesta, texto } = await pedirLocalizacion('<script>alert(1)</script>')
 
     expect(respuesta.status).toBe(400)
     expect(texto).not.toContain('script')
@@ -190,7 +219,7 @@ describe('las dos reglas de protección de datos', () => {
   })
 
   it('tampoco devuelve el código postal en el mensaje de error', async () => {
-    const { texto } = await pedirLocalizacion('?cp=99999')
+    const { texto } = await pedirLocalizacion('99999')
 
     expect(texto).not.toContain('99999')
   })

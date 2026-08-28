@@ -15,15 +15,23 @@ const CODIGO_POSTAL_INVALIDO = {
 }
 
 /**
- * `GET /api/localizacion?cp=08401` → dónde cae ese código postal.
+ * `POST /api/localizacion` con `{"cp": "08401"}` → dónde cae ese código postal.
  *
- * El código postal va en el parámetro de consulta y nunca en la ruta: el
- * alojamiento registra la ruta de cada petición sin que nadie se lo pida, y una
- * ruta `/api/localizacion/08401` dejaría escrito en su registro de dónde es
- * cada persona que ha mirado si hay cita del paro.
+ * Es POST y no GET por una sola razón, y no es de estilo: **el alojamiento
+ * registra la URL entera de cada petición, la cadena de consulta incluida**, y
+ * lo hace solo por existir, sin que nadie lo pida. Un `GET
+ * /api/localizacion?cp=08401` deja escrito en el registro de Vercel de dónde es
+ * cada persona que ha mirado si hay cita del paro; y en este proyecto eso, unido
+ * al trámite, dice que alguien está en el paro. El cuerpo de un POST no se
+ * registra.
+ *
+ * Lo que se pierde es que la consulta no se pueda compartir por enlace ni
+ * guardar en favoritos. Aquí no hace falta: el hero recuerda el último código
+ * postal en el propio navegador.
  */
-export async function GET(peticion: Request): Promise<Response> {
-  const codigoPostal = new URL(peticion.url).searchParams.get('cp') ?? ''
+export async function POST(peticion: Request): Promise<Response> {
+  const cuerpo = (await peticion.json().catch(() => null)) as { cp?: unknown } | null
+  const codigoPostal = typeof cuerpo?.cp === 'string' ? cuerpo.cp : ''
 
   try {
     return Response.json(await appDeProduccion().geocodificador.localizar(codigoPostal))
