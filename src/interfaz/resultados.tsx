@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { Localizacion } from '@/localizacion/geocodificador'
-import type { Oficina } from '@/sepe/oficinas'
 import { FichaDeOficina } from './ficha-de-oficina'
 import { idDeLaTarjeta, ListaDeOficinas } from './lista-de-oficinas'
+import type { OficinaConSuTramite } from './lo-que-va-llegando'
 import { Mapa } from './mapa/mapa'
 import { dondeMarcarElCodigoPostal } from './mapa/puntos'
 
@@ -23,9 +23,12 @@ import { dondeMarcarElCodigoPostal } from './mapa/puntos'
 export function Resultados({
   oficinas,
   localizacion,
+  busqueda,
 }: {
-  oficinas: Oficina[]
+  oficinas: OficinaConSuTramite[]
   localizacion: Localizacion | null
+  /** Cambia con cada búsqueda nueva; no con cada trámite que entra. */
+  busqueda: number
 }) {
   /** Por la que se está pasando, con el ratón o con el foco. */
   const [senalada, setSenalada] = useState<number | null>(null)
@@ -124,6 +127,7 @@ export function Resultados({
             <Mapa
               alElegir={setElegida}
               alSenalar={senalarDesdeElMapa}
+              busqueda={busqueda}
               marcaDelCodigoPostal={dondeMarcarElCodigoPostal(localizacion)}
               oficinas={oficinas}
               pantallaCompleta={mapaAbierto}

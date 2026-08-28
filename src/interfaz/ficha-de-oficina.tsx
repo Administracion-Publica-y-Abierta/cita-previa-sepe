@@ -1,5 +1,5 @@
-import type { Oficina } from '@/sepe/oficinas'
 import { enFechaYHora, enKilometros } from './formato'
+import type { OficinaConSuTramite } from './lo-que-va-llegando'
 import { comoLlegar } from './mapa/como-llegar'
 
 /**
@@ -19,13 +19,13 @@ function agenteDeUsuario(): string {
   return typeof navigator === 'undefined' ? '' : navigator.userAgent
 }
 
-export function FichaDeOficina({ oficina }: { oficina: Oficina }) {
+export function FichaDeOficina({ oficina }: { oficina: OficinaConSuTramite }) {
   return (
     <>
       <h3 className="text-lg font-semibold">{oficina.nombre}</h3>
 
       <p className="mt-1 text-base">
-        <Hueco primerHueco={oficina.primerHueco} />
+        <Hueco oficina={oficina} />
       </p>
 
       <p className="mt-3 text-base">{oficina.direccion}</p>
@@ -51,23 +51,28 @@ export function FichaDeOficina({ oficina }: { oficina: Oficina }) {
 }
 
 /**
- * Con hueco o sin él, dicho con palabras.
+ * Con hueco o sin él, dicho con palabras y **con el trámite del que es**.
  *
  * El color no puede ser lo único que los distinga: no lo ve quien no ve, y no
  * lo distingue buena parte de quien sí. Lo que separa las dos filas es la
  * primera palabra de la línea, y el color va encima. En el mapa el color sí es
  * lo que se ve de un vistazo, y por eso el mapa nunca va solo.
+ *
+ * El nombre del trámite va aquí desde que se consulta más de uno: la misma
+ * oficina sale en varios con una hora distinta en cada uno, y una hora sin
+ * decir para qué es no sirve para ir a ninguna parte.
  */
-function Hueco({ primerHueco }: { primerHueco: string | null }) {
-  if (primerHueco === null) {
+function Hueco({ oficina }: { oficina: OficinaConSuTramite }) {
+  if (oficina.primerHueco === null) {
     // No es lo mismo que no existir: esta oficina atiende, pero de este
     // trámite no tiene hora ahora mismo.
-    return <span className="opacity-70">Sin hueco ahora mismo</span>
+    return <span className="opacity-70">Sin hueco para «{oficina.tramite.nombre}» ahora mismo</span>
   }
 
   return (
     <span className="font-medium text-green-800 dark:text-green-300">
-      Con hueco: <time dateTime={primerHueco}>{enFechaYHora(primerHueco)}</time>
+      Con hueco para «{oficina.tramite.nombre}»:{' '}
+      <time dateTime={oficina.primerHueco}>{enFechaYHora(oficina.primerHueco)}</time>
     </span>
   )
 }

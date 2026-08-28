@@ -7,7 +7,7 @@ import {
   apiQueContestaCuandoSeLeDiga,
   apiQueNoContesta,
   oficina,
-  respuesta,
+  pasadaDeUnTramite,
 } from './sepe-en-el-navegador'
 
 /**
@@ -60,7 +60,7 @@ describe('la primera pantalla', () => {
 
   it('no pide el DNI en ningún momento, ni antes ni después de buscar', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '08402')
     await listaDeOficinas()
@@ -84,7 +84,7 @@ describe('el campo de código postal', () => {
 
   it('avisa de que faltan dígitos antes de lanzar una búsqueda que iba a fallar', async () => {
     const persona = montarPortada()
-    const api = apiQueContesta(respuesta())
+    const api = apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '084')
 
@@ -94,7 +94,7 @@ describe('el campo de código postal', () => {
 
   it('avisa de que no es español un código de cinco dígitos con provincia inexistente', async () => {
     const persona = montarPortada()
-    const api = apiQueContesta(respuesta())
+    const api = apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '99999')
 
@@ -104,7 +104,7 @@ describe('el campo de código postal', () => {
 
   it('avisa en el momento, sin esperar al botón, en cuanto están los cinco dígitos', async () => {
     const persona = montarPortada()
-    const api = apiQueContesta(respuesta())
+    const api = apiQueContesta(pasadaDeUnTramite())
 
     await persona.type(screen.getByLabelText(CODIGO_POSTAL), '99999')
 
@@ -117,7 +117,7 @@ describe('el campo de código postal', () => {
 
   it('no regaña a media escritura: con menos de cinco dígitos no dice nada', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
 
     await persona.type(screen.getByLabelText(CODIGO_POSTAL), '084')
 
@@ -127,7 +127,7 @@ describe('el campo de código postal', () => {
 
   it('marca el campo como inválido para quien no ve el aviso', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '084')
 
@@ -140,7 +140,7 @@ describe('el campo de código postal', () => {
 
   it('el aviso desaparece en cuanto el código postal pasa a ser válido', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '084')
     expect(screen.queryByRole('alert')).toBeTruthy()
@@ -154,7 +154,7 @@ describe('el campo de código postal', () => {
 describe('la lista de oficinas del primer trámite', () => {
   it('sale tras buscar, con todo lo que hace falta de cada oficina', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '08402')
 
@@ -172,7 +172,7 @@ describe('la lista de oficinas del primer trámite', () => {
 
   it('enseña el primer hueco en hora española y no en la del servidor', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '08402')
 
@@ -186,7 +186,7 @@ describe('la lista de oficinas del primer trámite', () => {
   it('distingue las oficinas con hueco de las que no lo tienen, y no solo por el color', async () => {
     const persona = montarPortada()
     apiQueContesta(
-      respuesta({
+      pasadaDeUnTramite({
         oficinas: [
           oficina({ id: 1, nombre: 'CON HUECO', primerHueco: '2026-08-17T09:00:00' }),
           oficina({ id: 2, nombre: 'SIN HUECO', primerHueco: null }),
@@ -203,7 +203,7 @@ describe('la lista de oficinas del primer trámite', () => {
 
   it('dice de qué trámite son las oficinas, con el nombre que le da el SEPE', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '08402')
 
@@ -219,7 +219,7 @@ describe('la lista de oficinas del primer trámite', () => {
   it('resume en una línea lo que ha salido, para que un lector de pantalla lo anuncie', async () => {
     const persona = montarPortada()
     apiQueContesta(
-      respuesta({
+      pasadaDeUnTramite({
         oficinas: [
           oficina({ id: 1, primerHueco: '2026-08-17T09:00:00' }),
           oficina({ id: 2, primerHueco: null }),
@@ -240,7 +240,7 @@ describe('la lista de oficinas del primer trámite', () => {
     const persona = montarPortada()
     const telefonos = ['900000001', '900000002', '900000003', '900000004', '900000005']
     apiQueContesta(
-      respuesta({
+      pasadaDeUnTramite({
         oficinas: telefonos.map((telefono, i) => oficina({ id: i + 1, nombre: `OFICINA ${i}`, telefono })),
       }),
     )
@@ -267,7 +267,7 @@ describe('la lista de oficinas del primer trámite', () => {
 
   it('un trámite sin ninguna oficina con hueco se dice, no se enseña una lista vacía', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta({ oficinas: [oficina({ primerHueco: null })] }))
+    apiQueContesta(pasadaDeUnTramite({ oficinas: [oficina({ primerHueco: null })] }))
 
     await buscar(persona, '08402')
 
@@ -291,7 +291,7 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
 
   it('un SEPE que no responde se cuenta como avería y no como "no hay citas"', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta({ estado: 'sepe-no-responde', tramite: null, oficinas: [] }))
+    apiQueContesta(pasadaDeUnTramite({ estado: 'sepe-no-responde', oficinas: [] }))
 
     await buscar(persona, '08402')
 
@@ -301,7 +301,7 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
 
   it('«hay cola» no se cuenta como que no hay citas', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta({ estado: 'vuelve-en-un-momento', tramite: null, oficinas: [] }))
+    apiQueContesta(pasadaDeUnTramite({ estado: 'vuelve-en-un-momento', oficinas: [] }))
 
     await buscar(persona, '08402')
 
@@ -314,7 +314,7 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
 
   it('dice que el dato es viejo cuando se sirve lo caducado porque el SEPE no contesta', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta({ caducada: true, desdeCache: true }))
+    apiQueContesta(pasadaDeUnTramite({ caducada: true, desdeCache: true }))
 
     await buscar(persona, '08402')
     await listaDeOficinas()
@@ -326,7 +326,7 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
 
   it('una respuesta reciente servida de la caché no se anuncia como vieja', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta({ caducada: false, desdeCache: true }))
+    apiQueContesta(pasadaDeUnTramite({ caducada: false, desdeCache: true }))
 
     await buscar(persona, '08402')
     await listaDeOficinas()
@@ -355,7 +355,7 @@ describe('mientras se busca y cuando la búsqueda no sale', () => {
 describe('lo que la web recuerda', () => {
   it('propone el último código postal usado la próxima vez', async () => {
     const primera = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
     await buscar(primera, '08402')
     await listaDeOficinas()
 
@@ -371,7 +371,7 @@ describe('lo que la web recuerda', () => {
 
   it('lo recuerda en el navegador y no en ningún servidor nuestro', async () => {
     const persona = montarPortada()
-    const api = apiQueContesta(respuesta())
+    const api = apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '08402')
     await listaDeOficinas()
@@ -403,10 +403,10 @@ describe('cuando se cruzan dos búsquedas', () => {
 
     // Contesta primero la segunda y después la primera, que es justo el orden
     // que rompería la pantalla.
-    api.contestar(1, respuesta({ oficinas: [oficina({ id: 2, nombre: 'LA QUE SE HA PEDIDO' })] }))
+    api.contestar(1, pasadaDeUnTramite({ oficinas: [oficina({ id: 2, nombre: 'LA QUE SE HA PEDIDO' })] }))
     await waitFor(() => expect(screen.getByText('LA QUE SE HA PEDIDO')).toBeTruthy())
 
-    api.contestar(0, respuesta({ oficinas: [oficina({ id: 1, nombre: 'LA VIEJA' })] }))
+    api.contestar(0, pasadaDeUnTramite({ oficinas: [oficina({ id: 1, nombre: 'LA VIEJA' })] }))
 
     await waitFor(() => expect(screen.getByText('LA QUE SE HA PEDIDO')).toBeTruthy())
     expect(screen.queryByText('LA VIEJA')).toBe(null)
@@ -416,7 +416,7 @@ describe('cuando se cruzan dos búsquedas', () => {
 describe('la búsqueda en la dirección de la página', () => {
   it('queda reflejada al buscar', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '08402')
     await listaDeOficinas()
@@ -426,7 +426,7 @@ describe('la búsqueda en la dirección de la página', () => {
 
   it('va en el fragmento, que es la parte de la URL que no viaja al servidor', async () => {
     const persona = montarPortada()
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
 
     await buscar(persona, '08402')
     await listaDeOficinas()
@@ -440,18 +440,18 @@ describe('la búsqueda en la dirección de la página', () => {
   })
 
   it('abrir un enlace compartido enseña la misma búsqueda, sin tocar nada', async () => {
-    const api = apiQueContesta(respuesta())
+    const api = apiQueContesta(pasadaDeUnTramite())
     window.history.replaceState(null, '', '/#cp=08402')
 
     render(<Portada />)
 
     expect(within(await listaDeOficinas()).getAllByRole('listitem')).toHaveLength(1)
     expect(campoDelCodigoPostal().value).toBe('08402')
-    expect(api.peticiones).toEqual([{ url: '/api/oficinas', cuerpo: { cp: '08402' } }])
+    expect(api.peticiones).toEqual([{ url: '/api/busqueda', cuerpo: { cp: '08402' } }])
   })
 
   it('el código postal que llega por enlace también se recuerda para la próxima', async () => {
-    apiQueContesta(respuesta())
+    apiQueContesta(pasadaDeUnTramite())
     window.history.replaceState(null, '', '/#cp=08402')
     render(<Portada />)
     await listaDeOficinas()
@@ -468,7 +468,7 @@ describe('la búsqueda en la dirección de la página', () => {
   })
 
   it('un fragmento con basura dentro no lanza ninguna búsqueda', async () => {
-    const api = apiQueContesta(respuesta())
+    const api = apiQueContesta(pasadaDeUnTramite())
     window.history.replaceState(null, '', '/#cp=no-es-un-codigo-postal')
 
     render(<Portada />)

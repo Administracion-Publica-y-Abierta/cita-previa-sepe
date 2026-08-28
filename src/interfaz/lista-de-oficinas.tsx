@@ -1,5 +1,5 @@
-import type { Oficina } from '@/sepe/oficinas'
 import { FichaDeOficina } from './ficha-de-oficina'
+import type { OficinaConSuTramite } from './lo-que-va-llegando'
 
 /**
  * El identificador de la tarjeta de una oficina.
@@ -27,7 +27,7 @@ export function ListaDeOficinas({
   senalada,
   alSenalar,
 }: {
-  oficinas: Oficina[]
+  oficinas: OficinaConSuTramite[]
   /** La oficina que está señalada ahora mismo, aquí y en el mapa. */
   senalada: number | null
   alSenalar: (id: number | null) => void

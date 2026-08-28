@@ -1,14 +1,30 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from 'react'
 import { avisoDe, DIGITOS, soloDigitos } from './codigo-postal'
-import { pedirOficinas, type Estado } from './consulta'
+import {
+  acabada,
+  con,
+  empezando,
+  NADA_TODAVIA,
+  oficinasDe,
+  type LoQueVaLlegando,
+} from './lo-que-va-llegando'
 import {
   codigoPostalDeLaDireccion,
   ponerEnLaDireccion,
   recordarCodigoPostal,
   ultimoCodigoPostal,
 } from './lo-que-recuerda-el-navegador'
+import { seguirLaPasada } from './pasada'
 import { Resultados } from './resultados'
 import { resumenDe, seCuentaAlgo, tituloDe } from './resumen'
 
@@ -20,6 +36,10 @@ import { resumenDe, seCuentaAlgo, tituloDe } from './resumen'
  * trámite —el filtro llega en el issue #10, cuando ya hay una lista delante
  * que filtrar—, no se crea cuenta, y **no se pide el DNI**: nadie entrega un
  * dato antes de saber si le merece la pena.
+ *
+ * Y la búsqueda no es una espera: los trámites de la zona se consultan en cola
+ * y **entran según llegan**. La lista y el mapa aparecen con el primero, y
+ * mientras el resto viene se dice cuál se está consultando y cuánto falta.
  */
 
 /** Los identificadores de los textos atados al campo. Fijos, para poder citarlos. */
@@ -61,8 +81,8 @@ export function Hero() {
   /** Lo tecleado, o `null` mientras no se haya tecleado nada. */
   const [escrito, setEscrito] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  /** En qué ha quedado la última consulta, o `null` si no ha terminado ninguna. */
-  const [resultado, setResultado] = useState<Estado | null>(null)
+  /** Lo que va llegando de la última búsqueda, o `null` si no se ha lanzado ninguna. */
+  const [llegando, setLlegando] = useState<LoQueVaLlegando | null>(null)
 
   // El `??` de fuera y no `||`: borrar el campo del todo es teclear, y
   // entonces tiene que quedarse vacío en vez de volver a proponer lo de antes.
@@ -70,22 +90,45 @@ export function Hero() {
   // algo dentro.
   const codigoPostal = escrito ?? (compartido || propuesto)
 
-  // Si el enlace traía búsqueda y todavía no hay respuesta, es que se está
+  // Si el enlace traía búsqueda y todavía no ha llegado nada, es que se está
   // buscando: la consulta sale en el mismo pintado, desde el efecto de abajo.
-  const estado: Estado = resultado ?? (compartido ? { fase: 'buscando' } : { fase: 'inicial' })
+  const estado: LoQueVaLlegando = llegando ?? (compartido ? empezando(0) : NADA_TODAVIA)
 
   /**
-   * Cuál es la consulta que vale. Solo la última: si se lanzan dos —la del
-   * enlace y una a mano—, contestan en el orden en que les dé la gana, y sin
-   * esto la vieja podría pisar a la nueva y enseñar las oficinas de otro
-   * código postal debajo del que se acaba de escribir.
+   * Cuál es la búsqueda que vale. Solo la última: si se lanzan dos —la del
+   * enlace y una a mano—, los eventos de las dos llegan mezclados y sin esto
+   * la vieja podría pisar a la nueva y enseñar las oficinas de otro código
+   * postal debajo del que se acaba de escribir.
    */
-  const ultimaConsulta = useRef(0)
+  const ultimaBusqueda = useRef(0)
+  /** Con qué se abandona la que iba, para dejar de gastar peticiones al SEPE. */
+  const enCurso = useRef<AbortController | null>(null)
 
-  const aplicar = useCallback((numero: number, siguiente: Estado) => {
-    if (numero !== ultimaConsulta.current) return
-    setResultado(siguiente)
-    if (siguiente.fase === 'rechazado') setAviso(LO_RECHAZA_EL_SERVIDOR)
+  const buscarOficinas = useCallback((codigoPostal: string) => {
+    // La anterior se abandona de verdad y no solo se ignora: seguir
+    // escuchándola es seguir gastando peticiones al SEPE de una búsqueda que ya
+    // no le interesa a nadie, y el ritmo es de todo el servicio.
+    enCurso.current?.abort()
+    const mando = new AbortController()
+    enCurso.current = mando
+
+    const numero = (ultimaBusqueda.current += 1)
+    const esLaBuena = () => numero === ultimaBusqueda.current
+    setLlegando(empezando(numero))
+
+    void seguirLaPasada(
+      codigoPostal,
+      (evento) => {
+        if (esLaBuena()) setLlegando((antes) => con(antes ?? empezando(numero), evento))
+      },
+      mando.signal,
+    ).then((fin) => {
+      // `abandonada` no se pinta: es esta misma pantalla la que la ha cortado
+      // para lanzar otra, y contarlo como un fallo sería mentir sobre la nueva.
+      if (!esLaBuena() || fin === 'abandonada') return
+      setLlegando((antes) => acabada(antes ?? empezando(numero), fin))
+      if (fin === 'rechazado') setAviso(LO_RECHAZA_EL_SERVIDOR)
+    })
   }, [])
 
   // Un enlace compartido enseña la misma búsqueda: se busca solo. Lo que
@@ -109,9 +152,8 @@ export function Hero() {
     // quien entra siempre por su marcador nunca vería el campo relleno.
     recordarCodigoPostal(compartido)
 
-    const numero = (ultimaConsulta.current += 1)
-    void pedirOficinas(compartido).then((siguiente) => aplicar(numero, siguiente))
-  }, [compartido, aplicar])
+    buscarOficinas(compartido)
+  }, [compartido, buscarOficinas])
 
   function alEscribir(tecleado: string): void {
     const limpio = soloDigitos(tecleado)
@@ -136,13 +178,13 @@ export function Hero() {
     ponerEnLaDireccion(codigoPostal)
 
     setAviso(null)
-    setResultado({ fase: 'buscando' })
-
-    const numero = (ultimaConsulta.current += 1)
-    void pedirOficinas(codigoPostal).then((siguiente) => aplicar(numero, siguiente))
+    buscarOficinas(codigoPostal)
   }
 
-  const busqueda = estado.fase === 'hecho' ? estado.busqueda : null
+  // Se funden una vez por evento y no en cada pintado: la lista es la misma
+  // mientras no llegue nada, y darle al mapa una lista nueva cada vez que se
+  // teclea en el campo es hacerle rehacer sus puntos por nada.
+  const oficinas = useMemo(() => oficinasDe(estado), [estado])
   const hayTitulo = seCuentaAlgo(estado)
 
   return (
@@ -200,7 +242,7 @@ export function Hero() {
       <section aria-labelledby={hayTitulo ? TITULO : undefined} className="flex w-full flex-col gap-4">
         {hayTitulo && (
           <h2 className="text-2xl font-semibold" id={TITULO}>
-            {tituloDe(busqueda)}
+            {tituloDe(estado)}
           </h2>
         )}
 
@@ -218,15 +260,22 @@ export function Hero() {
           {resumenDe(estado)}
         </p>
 
-        {busqueda?.estado === 'ok' && busqueda.oficinas.length > 0 && (
+        {/* En cuanto hay una oficina se enseña, sin esperar a que termine la
+            pasada: eso es lo que hace que el mapa salga con el primer trámite
+            en vez de a los cuarenta y cuatro segundos. */}
+        {oficinas.length > 0 && (
           <>
-            {busqueda.localizacion?.precision === 'aproximada-provincial' && (
+            {estado.localizacion?.precision === 'aproximada-provincial' && (
               <p className="text-base opacity-70">
                 No hemos podido situar ese código postal con exactitud: las distancias están medidas desde el
-                centro de {busqueda.localizacion.provincia} y pueden fallar por decenas de kilómetros.
+                centro de {estado.localizacion.provincia} y pueden fallar por decenas de kilómetros.
               </p>
             )}
-            <Resultados localizacion={busqueda.localizacion} oficinas={busqueda.oficinas} />
+            <Resultados
+              busqueda={estado.busqueda}
+              localizacion={estado.localizacion}
+              oficinas={oficinas}
+            />
           </>
         )}
       </section>

@@ -44,6 +44,37 @@ API. Lo que hay que saber antes de tocarlo:
   fondo y ni una calle. Parece que funciona, y es lo que lo hace caro de
   encontrar.
 
+## La búsqueda no es una respuesta: es algo que va llegando
+
+Una pasada de nueve trámites son unos 44 segundos —el freno de 2,5 s no se
+negocia— y eso no lo mira nadie ni lo aguanta una función serverless. Por eso
+`POST /api/busqueda` contesta en **streaming**, un objeto JSON por línea
+(NDJSON), y no un resultado. Lo que hay que saber antes de tocarlo:
+
+- **No es *Server-Sent Events*, y no por gusto.** `EventSource` solo sabe hacer
+  GET, y aquí el código postal no puede ir en una URL: el alojamiento registra
+  la URL entera de cada petición solo por existir. Un objeto por línea sobre un
+  POST no necesita librería en ninguna de las dos puntas (`src/nucleo/ndjson.ts`).
+- **Una invocación no sostiene la pasada entera.** `src/sepe/pasada.ts` lleva un
+  presupuesto: cuando se acaba, cierra con un evento `pendientes` y la siguiente
+  petición continúa por ahí. Eso no es sondeo —cada petición trae trámites
+  resueltos—, y el primer trámite se consulta **siempre**, aunque el
+  presupuesto ya esté gastado: sin esa regla, una zona cuyo catálogo se lo come
+  entero no avanzaría nunca.
+- **La continuación manda identificadores y nada más.** Los nombres de los
+  trámites los dice el SEPE, y para eso la cola de la zona se guarda en el
+  almacén compartido (`src/sepe/cola.ts`). La alternativa —que el navegador
+  devuelva los nombres— sería meter en la respuesta texto llegado en una
+  petición, que es justo lo que `src/app/api/errores.ts` no permite.
+- **En la pantalla, lo que llega se suma.** `src/interfaz/lo-que-va-llegando.ts`
+  guarda los trámites resueltos y funde sus oficinas por identificador,
+  quedándose con el hueco más temprano **y con el trámite del que es**: la misma
+  oficina sale en varios trámites con una hora distinta en cada uno, y una hora
+  sin decir para qué es no sirve para ir a ninguna parte.
+- **El mapa se encuadra una vez por búsqueda, no por trámite.** Los que entran
+  detrás son oficinas de la misma zona, y mover la vista con cada uno le
+  quitaría el mapa de las manos a quien lo está mirando mientras el resto llega.
+
 ## El patrón de test: `montarApp()`
 
 **Todo test empieza montando la aplicación con un `fetch` y un reloj falsos, en
@@ -116,6 +147,12 @@ habla con un Route Handler, y lo que hay detrás ya se ejercita entrando por la
 ruta en el proyecto de `servidor`. Los dobles están en
 `pruebas/interfaz/sepe-en-el-navegador.ts` y toman sus tipos del servidor, para
 que una respuesta que cambie de forma no compile.
+
+Como la búsqueda llega a trozos, ahí hay dos formas de contestar: la de golpe
+—`apiQueContesta(pasadaDeUnTramite())`, que es la de casi todos los tests— y
+`apiQueVaContando()`, que suelta un evento cuando el test lo dice. La segunda
+es la única forma de mirar la pantalla **a mitad** de la pasada, que es donde
+vive la mitad de lo que promete esta versión.
 
 ### Las dos únicas costuras
 

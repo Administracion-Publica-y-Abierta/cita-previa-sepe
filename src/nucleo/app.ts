@@ -3,9 +3,10 @@ import { crearGeocodificador, type Geocodificador } from '@/localizacion/geocodi
 import { crearBuscador, type Buscador } from '@/sepe/buscador'
 import { crearCatalogo, type Catalogo } from '@/sepe/catalogo'
 import { crearClienteSepe } from '@/sepe/cliente'
+import { crearColaDeTramites, type ColaDeTramites } from '@/sepe/cola'
 import { crearCacheDeConsultas } from '@/sepe/consultas'
 import { crearFrenoCompartido } from '@/sepe/freno'
-import { crearBuscadorDelPrimerTramite, type BuscadorDelPrimerTramite } from '@/sepe/primer-tramite'
+import { crearPasada, type Pasada } from '@/sepe/pasada'
 import { CONFIGURACION_POR_DEFECTO, type Configuracion } from './configuracion'
 import type { Dependencias } from './dependencias'
 
@@ -26,8 +27,10 @@ export interface App {
   catalogo: Catalogo
   /** Código postal y trámite → oficinas de la zona con su primer hueco. */
   buscador: Buscador
-  /** Código postal a secas → las oficinas del primer trámite. Es lo que pide el hero. */
-  primerTramite: BuscadorDelPrimerTramite
+  /** El catálogo puesto en fila, y recordado: lo que hay que consultar en una zona. */
+  colaDeTramites: ColaDeTramites
+  /** Código postal a secas → los trámites de la zona, contados según se resuelven. */
+  pasada: Pasada
 }
 
 /**
@@ -68,13 +71,19 @@ export function crearApp(dependencias: Dependencias, ajustes: Ajustes): App {
     cache: crearCacheDeConsultas({ almacen, reloj, configuracion }),
   })
 
+  // La cola se apoya en el almacén y no en la memoria del proceso por lo mismo
+  // que el freno: la invocación que continúa una pasada es otra, y tiene que
+  // encontrar ahí los trámites que le faltan en vez de redescubrir el árbol.
+  const colaDeTramites = crearColaDeTramites({ catalogo, almacen })
+
   return {
     dependencias,
     geocodificador,
     catalogo,
     buscador,
-    // No es una pieza más: es la composición de las dos de arriba, y se arma
-    // aquí para que no haya un Route Handler orquestando por su cuenta.
-    primerTramite: crearBuscadorDelPrimerTramite({ catalogo, buscador }),
+    colaDeTramites,
+    // No es una pieza más: es la composición de las de arriba, y se arma aquí
+    // para que no haya un Route Handler orquestando por su cuenta.
+    pasada: crearPasada({ geocodificador, colaDeTramites, buscador, reloj }),
   }
 }
