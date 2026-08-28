@@ -1,10 +1,9 @@
 import type { Geocodificador, Localizacion } from '@/localizacion/geocodificador'
 import type { Reloj } from '@/nucleo/reloj'
 import type { Buscador } from './buscador'
-import type { ColaDeTramites, EstadoDeLaCola } from './cola'
+import type { ColaDeTramites, EstadoDeLaCola, TramiteEnCola } from './cola'
 import type { EstadoDeLaConsulta } from './consultas'
 import type { Canal } from './mapa'
-import type { Subtramite } from './niveles'
 import type { Oficina } from './oficinas'
 
 /**
@@ -46,7 +45,7 @@ export type EventoDeLaPasada =
       estado: EstadoDeLaCola
       consultadoEn: number
       localizacion: Localizacion
-      tramites: Subtramite[]
+      tramites: TramiteEnCola[]
     }
   /**
    * Se está preguntando por este trámite. Sale **antes** de la espera, que es
@@ -69,7 +68,7 @@ export type EventoDeLaPasada =
       oficinas: Oficina[]
     }
   /** Lo que no ha cabido en esta invocación. Quien escucha vuelve a pedir eso. */
-  | { tipo: 'pendientes'; tramites: Subtramite[] }
+  | { tipo: 'pendientes'; tramites: TramiteEnCola[] }
 
 export interface PeticionDeLaPasada {
   codigoPostal: string

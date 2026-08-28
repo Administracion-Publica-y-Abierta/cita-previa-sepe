@@ -65,9 +65,10 @@ describe('la primera pantalla', () => {
     await buscar(persona, '08402')
     await listaDeOficinas()
 
-    // Sigue habiendo un solo campo, y no se llama DNI. Nadie entrega un dato
-    // antes de saber si le merece la pena, y aquí tampoco después.
-    expect(document.querySelectorAll('input, select, textarea')).toHaveLength(1)
+    // Sigue sin haber más que rellenar que el código postal, y no se llama
+    // DNI. Las casillas del filtro no cuentan: no piden ningún dato de nadie,
+    // solo eligen qué de lo que ya hay se mira.
+    expect(document.querySelectorAll('input:not([type=checkbox]), select, textarea')).toHaveLength(1)
     expect(screen.queryByLabelText(/dni|nif|documento/i)).toBe(null)
   })
 })
