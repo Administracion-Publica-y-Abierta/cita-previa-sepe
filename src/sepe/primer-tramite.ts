@@ -83,10 +83,10 @@ export function crearBuscadorDelPrimerTramite(piezas: {
       // Un árbol que no está `ok` no trae trámites, y elegir «el primero» de
       // una lista que se sabe incompleta sería consultar cualquier cosa. El
       // estado del catálogo sale tal cual: la avería es suya.
-      if (arbol.estado !== 'ok') return sinBuscar(arbol.estado, arbol.consultadoEn, null)
+      if (arbol.estado !== 'ok') return sinBuscar(arbol.estado, arbol.consultadoEn)
 
       const tramite = primerTramiteDe(arbol)
-      if (!tramite) return sinBuscar('sin-tramites', arbol.consultadoEn, null)
+      if (!tramite) return sinBuscar('sin-tramites', arbol.consultadoEn)
 
       const busqueda = await buscador.buscar({ codigoPostal, idTramite: tramite.id })
       return { ...busqueda, tramite }
@@ -94,10 +94,7 @@ export function crearBuscadorDelPrimerTramite(piezas: {
   }
 }
 
-function sinBuscar(
-  estado: EstadoDelPrimerTramite,
-  consultadoEn: number,
-  tramite: Subtramite | null,
-): BusquedaDelPrimerTramite {
-  return { estado, consultadoEn, tramite, localizacion: null, oficinas: [] }
+/** Lo que se devuelve cuando no se ha llegado a preguntarle al mapa. */
+function sinBuscar(estado: EstadoDelPrimerTramite, consultadoEn: number): BusquedaDelPrimerTramite {
+  return { estado, consultadoEn, tramite: null, localizacion: null, oficinas: [] }
 }

@@ -50,9 +50,25 @@ export function respuesta(parcial: Partial<BusquedaDelPrimerTramite> = {}): Busq
   }
 }
 
+/** La única ruta que la interfaz tiene permiso para llamar. */
+const RUTA = '/api/oficinas'
+
 /** Lo que se le ha pedido a la API, para poder comprobar que no se pide de más. */
 export interface ApiFalsa {
   peticiones: { url: string; cuerpo: unknown }[]
+}
+
+/**
+ * Igual que el `fetch` falso del servidor: si le piden algo que no sabe
+ * contestar, revienta diciéndolo en vez de devolver algo que valga.
+ *
+ * Sin esto, una interfaz que empezara a llamar a otra ruta seguiría pasando
+ * todos los tests, porque este doble contestaba lo mismo a cualquier URL.
+ */
+function exigirLaRuta(url: string): void {
+  if (url !== RUTA) {
+    throw new Error(`La interfaz ha llamado a ${url}, y la única ruta que tiene que llamar es ${RUTA}.`)
+  }
 }
 
 /**
@@ -68,6 +84,7 @@ export function apiQueContesta(
 
   vi.stubGlobal('fetch', async (entrada: RequestInfo | URL, opciones?: RequestInit) => {
     const url = String(entrada)
+    exigirLaRuta(url)
     api.peticiones.push({ url, cuerpo: JSON.parse(String(opciones?.body ?? 'null')) })
 
     const esError = 'estado' in contestar && typeof contestar.estado === 'number'
@@ -79,6 +96,62 @@ export function apiQueContesta(
       status: estado,
       headers: { 'content-type': 'application/json' },
     })
+  })
+
+  return api
+}
+
+/**
+ * Una API que nunca contesta.
+ *
+ * Es la única forma de mirar la pantalla mientras se busca sin carreras: con
+ * una respuesta inmediata, el estado de «buscando» dura menos que la
+ * comprobación.
+ */
+export function apiQueNoContesta(): ApiFalsa {
+  const api: ApiFalsa = { peticiones: [] }
+
+  vi.stubGlobal('fetch', (entrada: RequestInfo | URL, opciones?: RequestInit) => {
+    const url = String(entrada)
+    exigirLaRuta(url)
+    api.peticiones.push({ url, cuerpo: JSON.parse(String(opciones?.body ?? 'null')) })
+    return new Promise<Response>(() => {})
+  })
+
+  return api
+}
+
+/** Una respuesta que llega cuando el test lo diga, y no antes. */
+export interface ApiALaEspera extends ApiFalsa {
+  /** Contesta a la consulta número `cual` (empezando por 0) con `cuerpo`. */
+  contestar(cual: number, cuerpo: BusquedaDelPrimerTramite): void
+}
+
+/**
+ * Una API que deja al test decidir **en qué orden** contestan las consultas.
+ *
+ * Hace falta para lo que no se puede probar de otra forma: que una respuesta
+ * que llega tarde no pise a la búsqueda que se pidió después.
+ */
+export function apiQueContestaCuandoSeLeDiga(): ApiALaEspera {
+  const pendientes: ((respuesta: Response) => void)[] = []
+  const api: ApiALaEspera = {
+    peticiones: [],
+    contestar(cual, cuerpo) {
+      pendientes[cual](
+        new Response(JSON.stringify(cuerpo), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
+    },
+  }
+
+  vi.stubGlobal('fetch', (entrada: RequestInfo | URL, opciones?: RequestInit) => {
+    const url = String(entrada)
+    exigirLaRuta(url)
+    api.peticiones.push({ url, cuerpo: JSON.parse(String(opciones?.body ?? 'null')) })
+    return new Promise<Response>((resolver) => pendientes.push(resolver))
   })
 
   return api

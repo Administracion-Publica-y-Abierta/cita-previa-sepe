@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
-import type { BusquedaDelPrimerTramite } from '@/sepe/primer-tramite'
-import { avisoDe, soloDigitos } from './codigo-postal'
+import { avisoDe, DIGITOS, soloDigitos } from './codigo-postal'
+import { pedirOficinas, type Estado } from './consulta'
 import { ListaDeOficinas } from './lista-de-oficinas'
 import {
   codigoPostalDeLaDireccion,
@@ -10,6 +10,7 @@ import {
   recordarCodigoPostal,
   ultimoCodigoPostal,
 } from './lo-que-recuerda-el-navegador'
+import { resumenDe, seCuentaAlgo, tituloDe } from './resumen'
 
 /**
  * Un campo y un botón.
@@ -21,19 +22,17 @@ import {
  * dato antes de saber si le merece la pena.
  */
 
-const RUTA = '/api/oficinas'
-
 /** Los identificadores de los textos atados al campo. Fijos, para poder citarlos. */
 const AVISO = 'aviso-del-codigo-postal'
 const AYUDA = 'ayuda-del-codigo-postal'
+const TITULO = 'titulo-de-los-resultados'
 
 /**
  * Lo que se enseña cuando el servidor rechaza el código postal.
  *
  * Va pegado al campo y no en los resultados: ahí es donde está el arreglo. Es
- * un texto nuestro y no el del servidor porque el mensaje que se enseña es
- * cosa de la pantalla, y porque así no se enseña nunca algo que haya venido
- * por la red.
+ * un texto nuestro y no el del servidor, para no enseñar nunca algo que haya
+ * llegado por la red.
  */
 const LO_RECHAZA_EL_SERVIDOR =
   'Ese código postal no vale. Comprueba que son cinco dígitos de una provincia española.'
@@ -51,39 +50,6 @@ const SIN_CAMBIOS = () => () => {}
  * de en un desajuste de hidratación.
  */
 const EN_EL_SERVIDOR = () => ''
-
-type Estado =
-  | { fase: 'inicial' }
-  | { fase: 'buscando' }
-  | { fase: 'hecho'; busqueda: BusquedaDelPrimerTramite }
-  /** El servidor dice que ese código postal no vale. */
-  | { fase: 'rechazado' }
-  /** Ni siquiera se ha llegado a nuestro servidor: no hay red, o está caído. */
-  | { fase: 'sin-conexion' }
-
-/**
- * La consulta, y nada más: no toca estado, devuelve en qué ha quedado.
- *
- * Está fuera del componente a propósito. Así el efecto que la lanza no cambia
- * estado por su cuenta —solo lo hace la respuesta, cuando llega— y esto se
- * puede leer sin saber nada de React.
- */
-async function pedirOficinas(codigoPostal: string): Promise<Estado> {
-  try {
-    const respuesta = await fetch(RUTA, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      // El código postal va en el cuerpo y no en la URL: el alojamiento
-      // registra la URL entera de cada petición solo por existir.
-      body: JSON.stringify({ cp: codigoPostal }),
-    })
-
-    if (!respuesta.ok) return { fase: 'rechazado' }
-    return { fase: 'hecho', busqueda: (await respuesta.json()) as BusquedaDelPrimerTramite }
-  } catch {
-    return { fase: 'sin-conexion' }
-  }
-}
 
 export function Hero() {
   // La búsqueda que trae el enlace, y el último código postal usado. Se leen
@@ -108,7 +74,16 @@ export function Hero() {
   // buscando: la consulta sale en el mismo pintado, desde el efecto de abajo.
   const estado: Estado = resultado ?? (compartido ? { fase: 'buscando' } : { fase: 'inicial' })
 
-  const aplicar = useCallback((siguiente: Estado) => {
+  /**
+   * Cuál es la consulta que vale. Solo la última: si se lanzan dos —la del
+   * enlace y una a mano—, contestan en el orden en que les dé la gana, y sin
+   * esto la vieja podría pisar a la nueva y enseñar las oficinas de otro
+   * código postal debajo del que se acaba de escribir.
+   */
+  const ultimaConsulta = useRef(0)
+
+  const aplicar = useCallback((numero: number, siguiente: Estado) => {
+    if (numero !== ultimaConsulta.current) return
     setResultado(siguiente)
     if (siguiente.fase === 'rechazado') setAviso(LO_RECHAZA_EL_SERVIDOR)
   }, [])
@@ -128,16 +103,24 @@ export function Hero() {
   useEffect(() => {
     if (yaArrancado.current) return
     yaArrancado.current = true
-    if (compartido) void pedirOficinas(compartido).then(aplicar)
+    if (!compartido) return
+
+    // El que llega por enlace también es el último usado: si no se recordara,
+    // quien entra siempre por su marcador nunca vería el campo relleno.
+    recordarCodigoPostal(compartido)
+
+    const numero = (ultimaConsulta.current += 1)
+    void pedirOficinas(compartido).then((siguiente) => aplicar(numero, siguiente))
   }, [compartido, aplicar])
 
   function alEscribir(tecleado: string): void {
     const limpio = soloDigitos(tecleado)
     setEscrito(limpio)
-    // El aviso se quita en cuanto deja de ser cierto, pero no aparece mientras
-    // se teclea: avisar de que «faltan dígitos» a quien va por el segundo es
-    // regañar a alguien que lo está haciendo bien.
-    if (aviso && avisoDe(limpio) === null) setAviso(null)
+
+    // Se avisa en el momento, pero solo cuando ya se puede saber: con los
+    // cinco dígitos puestos. Decirle «faltan dígitos» a quien va por el
+    // segundo es regañar a alguien que lo está haciendo bien.
+    setAviso(limpio.length === DIGITOS ? avisoDe(limpio) : null)
   }
 
   function alEnviar(evento: FormEvent<HTMLFormElement>): void {
@@ -154,10 +137,13 @@ export function Hero() {
 
     setAviso(null)
     setResultado({ fase: 'buscando' })
-    void pedirOficinas(codigoPostal).then(aplicar)
+
+    const numero = (ultimaConsulta.current += 1)
+    void pedirOficinas(codigoPostal).then((siguiente) => aplicar(numero, siguiente))
   }
 
   const busqueda = estado.fase === 'hecho' ? estado.busqueda : null
+  const hayTitulo = seCuentaAlgo(estado)
 
   return (
     <>
@@ -208,13 +194,12 @@ export function Hero() {
         )}
       </form>
 
-      <section aria-labelledby="titulo-de-los-resultados" className="flex flex-col gap-4">
-        {/* Hasta que no se ha buscado no hay resultados de los que hablar, y un
-            «Resultados» con nada debajo es ruido justo en la pantalla que tiene
-            que entenderse en cinco segundos. La región viva de abajo sí se queda
-            desde el principio. */}
-        {estado.fase !== 'inicial' && (
-          <h2 className="text-2xl font-semibold" id="titulo-de-los-resultados">
+      {/* El nombre de la región va con su encabezado: sin él, `aria-labelledby`
+          apuntaría a un identificador que no existe y la sección se quedaría
+          sin nombre en vez de sin encabezado. */}
+      <section aria-labelledby={hayTitulo ? TITULO : undefined} className="flex flex-col gap-4">
+        {hayTitulo && (
+          <h2 className="text-2xl font-semibold" id={TITULO}>
             {tituloDe(busqueda)}
           </h2>
         )}
@@ -247,56 +232,4 @@ export function Hero() {
       </section>
     </>
   )
-}
-
-function tituloDe(busqueda: BusquedaDelPrimerTramite | null): string {
-  // El trámite en el título y no en letra pequeña: la lista son las oficinas
-  // *de algo*, y quien pregunta no ha elegido ese algo.
-  return busqueda?.tramite ? `Resultados para «${busqueda.tramite.nombre}»` : 'Resultados'
-}
-
-function resumenDe(estado: Estado): string {
-  switch (estado.fase) {
-    case 'inicial':
-      return ''
-    case 'buscando':
-      return 'Buscando oficinas. Puede tardar un minuto: al SEPE se le pregunta despacio a propósito.'
-    case 'sin-conexion':
-      return 'No se ha podido conectar. Comprueba la conexión y vuelve a probar.'
-    // El aviso de un código postal rechazado va pegado al campo, que es donde
-    // está el arreglo; aquí no se dice nada.
-    case 'rechazado':
-      return ''
-    default:
-      return resumenDeLaBusqueda(estado.busqueda)
-  }
-}
-
-function resumenDeLaBusqueda(busqueda: BusquedaDelPrimerTramite): string {
-  switch (busqueda.estado) {
-    // Los tres que siguen no son «no hay citas», y decirlo importa: quien lea
-    // «no hay citas» deja de mirar, y lo que pasa es que no se ha podido
-    // preguntar.
-    case 'sepe-no-responde':
-      return 'El SEPE no responde ahora mismo. No es que no haya citas: es que no se le ha podido preguntar. Vuelve a probar en un rato.'
-    case 'sin-agenda':
-      return 'El SEPE ha contestado sin agenda. Le pasa a ratos y no significa que no haya citas. Vuelve a probar en un rato.'
-    case 'sin-tramites':
-      return 'El SEPE no ofrece ningún trámite con cita previa en esta zona.'
-    default:
-      return resumenDeLasOficinas(busqueda)
-  }
-}
-
-function resumenDeLasOficinas(busqueda: BusquedaDelPrimerTramite): string {
-  const cuantas = busqueda.oficinas.length
-  if (cuantas === 0) return 'El SEPE no atiende este trámite en ninguna oficina de la zona.'
-
-  const conHueco = busqueda.oficinas.filter((oficina) => oficina.primerHueco !== null).length
-  const donde = busqueda.localizacion?.municipio ?? busqueda.localizacion?.provincia ?? 'tu zona'
-  const cabecera = cuantas === 1 ? `1 oficina cerca de ${donde}` : `${cuantas} oficinas cerca de ${donde}`
-
-  if (conHueco === 0) return `${cabecera}, ninguna con hueco ahora mismo.`
-  if (conHueco === 1) return `${cabecera}, 1 con hueco.`
-  return `${cabecera}, ${conHueco} con hueco.`
 }

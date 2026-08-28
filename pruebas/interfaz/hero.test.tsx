@@ -1,8 +1,14 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Portada from '@/app/page'
-import { apiQueContesta, oficina, respuesta } from './sepe-en-el-navegador'
+import {
+  apiQueContesta,
+  apiQueContestaCuandoSeLeDiga,
+  apiQueNoContesta,
+  oficina,
+  respuesta,
+} from './sepe-en-el-navegador'
 
 /**
  * La primera pantalla, probada como la usa quien llega: se escribe un código
@@ -53,12 +59,11 @@ describe('la primera pantalla', () => {
   it('dice en la propia pantalla qué hace y qué no hace', () => {
     montarPortada()
 
-    const texto = document.body.textContent ?? ''
-    expect(texto).toMatch(/no es (la web d)?el sepe/i)
-    expect(texto).toMatch(/proyecto independiente/i)
+    expect(screen.getByText(/esto no es el sepe/i)).toBeTruthy()
+    expect(screen.getAllByText(/proyecto independiente/i).length).toBeGreaterThan(0)
     // Lo que no hace, y es lo que más confusión ahorra: aquí no se reserva.
-    expect(texto).toMatch(/no se reserva|todavía no se (puede )?reserva/i)
-    expect(texto).toMatch(/pueden cambiar/i)
+    expect(screen.getByText(/todavía no se reserva la cita/i)).toBeTruthy()
+    expect(screen.getByText(/pueden cambiar en cualquier momento/i)).toBeTruthy()
   })
 
   it('enseña el enlace a la sede oficial, que es donde se reserva de verdad', () => {
@@ -73,7 +78,7 @@ describe('la primera pantalla', () => {
 
     const fuente = screen.getByRole('link', { name: /código fuente/i })
     expect(fuente.getAttribute('href')).toContain('github.com')
-    expect(document.body.textContent).toMatch(/qué guardamos de ti: nada/i)
+    expect(screen.getByText(/qué guardamos de ti: nada/i)).toBeTruthy()
   })
 
   it('no pide el DNI en ningún momento, ni antes ni después de buscar', async () => {
@@ -118,6 +123,29 @@ describe('el campo de código postal', () => {
 
     expect((await screen.findByRole('alert')).textContent).toMatch(/no parece un código postal español/i)
     expect(api.peticiones).toEqual([])
+  })
+
+  it('avisa en el momento, sin esperar al botón, en cuanto están los cinco dígitos', async () => {
+    const persona = montarPortada()
+    const api = apiQueContesta(respuesta())
+
+    await persona.type(screen.getByLabelText(CODIGO_POSTAL), '99999')
+
+    // Nadie ha pulsado nada: con los cinco dígitos puestos ya se sabe que ese
+    // código postal no existe, y hacer esperar al botón para decirlo es hacer
+    // esperar por nada.
+    expect((await screen.findByRole('alert')).textContent).toMatch(/no parece un código postal español/i)
+    expect(api.peticiones).toEqual([])
+  })
+
+  it('no regaña a media escritura: con menos de cinco dígitos no dice nada', async () => {
+    const persona = montarPortada()
+    apiQueContesta(respuesta())
+
+    await persona.type(screen.getByLabelText(CODIGO_POSTAL), '084')
+
+    // Quien va por el tercer dígito lo está haciendo bien.
+    expect(screen.queryByRole('alert')).toBe(null)
   })
 
   it('marca el campo como inválido para quien no ve el aviso', async () => {
@@ -231,33 +259,33 @@ describe('la lista de oficinas del primer trámite', () => {
     expect(screen.getByRole('status').textContent).toMatch(/1 con hueco/)
   })
 
-  it('se recorre entera con el teclado', async () => {
+  it('se recorre entera con el teclado, oficina por oficina y en orden', async () => {
     const persona = montarPortada()
+    const telefonos = ['900000001', '900000002', '900000003', '900000004', '900000005']
     apiQueContesta(
       respuesta({
-        oficinas: [
-          oficina({ id: 1, nombre: 'PRIMERA', telefono: '900000001' }),
-          oficina({ id: 2, nombre: 'SEGUNDA', telefono: '900000002' }),
-        ],
+        oficinas: telefonos.map((telefono, i) => oficina({ id: i + 1, nombre: `OFICINA ${i}`, telefono })),
       }),
     )
 
     await buscar(persona, '08402')
     await listaDeOficinas()
 
-    // Desde el campo se llega a los teléfonos de las dos oficinas tabulando, y
-    // sin pasar por ningún sitio que no se pueda enfocar: la lista es el camino
-    // equivalente al mapa, no un adorno que se ve pero no se recorre.
-    const alcanzables: string[] = []
+    // Tabulando desde el campo se llega al teléfono de **todas** las oficinas,
+    // en el mismo orden en que se leen, sin saltarse ninguna y sin quedarse
+    // atrapado: la lista es el camino equivalente al mapa, no un adorno que se
+    // ve pero no se recorre. Con dos oficinas esto no probaba nada.
+    const alcanzados: string[] = []
     screen.getByLabelText(CODIGO_POSTAL).focus()
-    for (let salto = 0; salto < 12; salto += 1) {
+    for (let salto = 0; salto < 30 && alcanzados.length < telefonos.length; salto += 1) {
       await persona.tab()
       const enfocado = document.activeElement
-      if (enfocado instanceof HTMLElement && enfocado.textContent) alcanzables.push(enfocado.textContent)
+      if (enfocado instanceof HTMLAnchorElement && enfocado.href.startsWith('tel:')) {
+        alcanzados.push(enfocado.textContent ?? '')
+      }
     }
 
-    expect(alcanzables.join(' | ')).toContain('900000001')
-    expect(alcanzables.join(' | ')).toContain('900000002')
+    expect(alcanzados).toEqual(telefonos)
   })
 
   it('un trámite sin ninguna oficina con hueco se dice, no se enseña una lista vacía', async () => {
@@ -275,9 +303,7 @@ describe('la lista de oficinas del primer trámite', () => {
 describe('mientras se busca y cuando la búsqueda no sale', () => {
   it('avisa de que está buscando, y de que tarda porque el SEPE se pregunta despacio', async () => {
     const persona = montarPortada()
-    // El `fetch` que nunca contesta: es la única forma de mirar el estado de
-    // "buscando" sin carreras.
-    vi.stubGlobal('fetch', () => new Promise<Response>(() => {}))
+    apiQueNoContesta()
 
     await buscar(persona, '08402')
 
@@ -320,13 +346,14 @@ describe('lo que la web recuerda', () => {
     await buscar(primera, '08402')
     await listaDeOficinas()
 
-    // Otra visita: el navegador es el mismo, la página se monta de cero.
-    screen.getByLabelText(CODIGO_POSTAL) // el de la primera visita, aún montado
+    // Otra visita: se desmonta la pantalla y se vuelve a montar, con el mismo
+    // navegador detrás. Sin desmontar quedarían dos portadas a la vez, que es
+    // algo que no le pasa a nadie.
+    cleanup()
     window.history.replaceState(null, '', '/')
     render(<Portada />)
 
-    const campos = screen.getAllByLabelText(CODIGO_POSTAL) as HTMLInputElement[]
-    expect(campos.at(-1)?.value).toBe('08402')
+    expect((screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement).value).toBe('08402')
   })
 
   it('lo recuerda en el navegador y no en ningún servidor nuestro', async () => {
@@ -342,6 +369,34 @@ describe('lo que la web recuerda', () => {
     expect(api.peticiones[0].url).not.toContain('08402')
     expect(api.peticiones[0].cuerpo).toEqual({ cp: '08402' })
     expect(window.localStorage.getItem('ultimo-codigo-postal')).toBe('08402')
+  })
+})
+
+describe('cuando se cruzan dos búsquedas', () => {
+  it('una respuesta que llega tarde no pisa a la búsqueda pedida después', async () => {
+    const api = apiQueContestaCuandoSeLeDiga()
+    window.history.replaceState(null, '', '/#cp=08401')
+    render(<Portada />)
+
+    // Mientras la del enlace sigue en el aire se pide otra. Hoy el botón
+    // deshabilitado lo hace difícil, pero el orden en que contesta el servidor
+    // no lo decide esta pantalla, y de esto no se puede depender de un
+    // atributo: en cuanto haya un segundo sitio desde el que buscar —los
+    // filtros del issue #11— vuelven a cruzarse.
+    fireEvent.change(screen.getByLabelText(CODIGO_POSTAL), { target: { value: '08402' } })
+    fireEvent.submit(screen.getByLabelText(CODIGO_POSTAL).closest('form')!)
+
+    await waitFor(() => expect(api.peticiones).toHaveLength(2))
+
+    // Contesta primero la segunda y después la primera, que es justo el orden
+    // que rompería la pantalla.
+    api.contestar(1, respuesta({ oficinas: [oficina({ id: 2, nombre: 'LA QUE SE HA PEDIDO' })] }))
+    await waitFor(() => expect(screen.getByText('LA QUE SE HA PEDIDO')).toBeTruthy())
+
+    api.contestar(0, respuesta({ oficinas: [oficina({ id: 1, nombre: 'LA VIEJA' })] }))
+
+    await waitFor(() => expect(screen.getByText('LA QUE SE HA PEDIDO')).toBeTruthy())
+    expect(screen.queryByText('LA VIEJA')).toBe(null)
   })
 })
 
@@ -380,6 +435,23 @@ describe('la búsqueda en la dirección de la página', () => {
     expect(within(await listaDeOficinas()).getAllByRole('listitem')).toHaveLength(1)
     expect((screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement).value).toBe('08402')
     expect(api.peticiones).toEqual([{ url: '/api/oficinas', cuerpo: { cp: '08402' } }])
+  })
+
+  it('el código postal que llega por enlace también se recuerda para la próxima', async () => {
+    apiQueContesta(respuesta())
+    window.history.replaceState(null, '', '/#cp=08402')
+    render(<Portada />)
+    await listaDeOficinas()
+
+    // Quien entra siempre por su marcador también lo ha «usado»: si solo se
+    // recordara lo tecleado, nunca vería el campo relleno al entrar sin él.
+    expect(window.localStorage.getItem('ultimo-codigo-postal')).toBe('08402')
+
+    cleanup()
+    window.history.replaceState(null, '', '/')
+    render(<Portada />)
+
+    expect((screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement).value).toBe('08402')
   })
 
   it('un fragmento con basura dentro no lanza ninguna búsqueda', async () => {
