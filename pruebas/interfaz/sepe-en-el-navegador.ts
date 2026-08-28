@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import type { Localizacion } from '@/localizacion/geocodificador'
-import type { EstadoDeLaCola } from '@/sepe/cola'
+import type { EstadoDeLaCola, GrupoDeTramites, TramiteEnCola } from '@/sepe/cola'
 import type { EstadoDeLaConsulta } from '@/sepe/consultas'
 import type { Subtramite } from '@/sepe/niveles'
 import type { Oficina } from '@/sepe/oficinas'
@@ -49,7 +49,25 @@ const GRANOLLERS: Localizacion = {
   precision: 'exacta',
 }
 
-const UN_TRAMITE: Subtramite = { id: 631, nombre: 'Voy a salir al extranjero' }
+/**
+ * Un grupo del SEPE de verdad, sacado de las capturas: es el trámite de nivel 2
+ * del que cuelgan los consultables de 08401.
+ */
+const UN_GRUPO: GrupoDeTramites = {
+  id: 155,
+  nombre: 'Estoy cobrando prestación/subsidio y ha cambiado mi situación',
+}
+
+/**
+ * Un trámite tal como sale de la cola: el consultable y el grupo del que
+ * cuelga. El grupo tiene valor por defecto para que los tests que no van de
+ * agrupación no tengan que decirlo, y los que sí van lo digan a mano.
+ */
+export function tramite(parcial: { id: number; nombre: string; grupo?: GrupoDeTramites }): TramiteEnCola {
+  return { grupo: UN_GRUPO, ...parcial }
+}
+
+const UN_TRAMITE: TramiteEnCola = tramite({ id: 631, nombre: 'Voy a salir al extranjero' })
 
 export function oficina(parcial: Partial<Oficina> = {}): Oficina {
   return {
@@ -77,7 +95,7 @@ export function oficina(parcial: Partial<Oficina> = {}): Oficina {
  * ponerla rancia y comprobar que los filtros de fecha no le hacen caso.
  */
 export function cola(
-  tramites: Subtramite[],
+  tramites: TramiteEnCola[],
   estado: EstadoDeLaCola = 'ok',
   consultadoEn: number = CONSULTADO_EN,
 ): EventoDeLaPasada {
@@ -87,7 +105,7 @@ export function cola(
 /** Un trámite resuelto, con lo que haya salido de él. */
 export function resuelto(
   parcial: Partial<{
-    tramite: Subtramite
+    tramite: TramiteEnCola
     estado: EstadoDeLaConsulta
     desdeCache: boolean
     caducada: boolean
@@ -221,6 +239,11 @@ export interface ApiQueVaContando extends ApiFalsa {
   contar(evento: EventoDeLaPasada): void
   /** Cierra la respuesta: la búsqueda ha terminado. */
   cerrar(): void
+  /**
+   * El streaming se corta a la mitad. Es un caso real —la conexión se va— y el
+   * único que deja una pasada abierta sin terminarla.
+   */
+  romper(): void
 }
 
 /**
@@ -241,6 +264,10 @@ export function apiQueVaContando(): ApiQueVaContando {
     },
     cerrar() {
       mando?.close()
+      mando = null
+    },
+    romper() {
+      mando?.error(new Error('la conexión se ha ido'))
       mando = null
     },
   }
@@ -278,7 +305,7 @@ export function apiQueContestaPorTurnos(tandas: EventoDeLaPasada[][]): ApiFalsa 
 }
 
 /** Lo que el servidor manda al cerrar sin haber terminado. */
-export function pendientes(tramites: Subtramite[]): EventoDeLaPasada {
+export function pendientes(tramites: TramiteEnCola[]): EventoDeLaPasada {
   return { tipo: 'pendientes', tramites }
 }
 

@@ -75,6 +75,40 @@ negocia— y eso no lo mira nadie ni lo aguanta una función serverless. Por eso
   detrás son oficinas de la misma zona, y mover la vista con cada uno le
   quitaría el mapa de las manos a quien lo está mirando mientras el resto llega.
 
+## Marcar trámites no relanza la búsqueda
+
+Mucha gente no sabe cómo se llama su trámite, así que aquí no se le hace
+elegir uno: se marcan **varios a la vez** y salen agrupados como los agrupa el
+SEPE. Lo que hay que saber antes de tocarlo:
+
+- **El grupo viaja pegado a cada trámite de la cola** (`src/sepe/cola.ts`) y no
+  aparte, porque la cola es una fila y no un árbol: quien la recorre no
+  necesita la agrupación y quien la enseña la rehace. El grupo es el trámite de
+  **nivel 2** —el combo «Trámite» de la sede, del que cuelga el de
+  «Subtrámite»—. El nivel 1 no entra: el SEPE lo llama «Tipo de oficina» y no
+  agrupa trámites.
+- **Sin marcar nada se enseñan todos.** Marcar estrecha, y no es un paso previo
+  a ver nada: por eso el hero sigue siendo un campo y un botón.
+- **El filtro mira y no tira.** `soloLoElegido`
+  (`src/interfaz/tramites-elegidos.ts`) filtra la vista, no el estado: lo
+  desmarcado sigue entero, y eso es lo que hace que volver a marcarlo no cueste
+  otra consulta al SEPE.
+- **Marcar algo que no se ha consultado lo mete en la cola.** Por eso la
+  búsqueda vive en el hero como un bucle y no como una llamada: mientras quede
+  algo marcado por saber se vuelve a salir al SEPE y lo que llega se suma a lo
+  que ya hay. Con una pasada abierta se apunta y se espera —dos pasadas a la
+  vez son dos colas peleándose por las fichas del freno—.
+- **Lo marcado va en el fragmento** (`#cp=08401&t=23,17`), por lo mismo que el
+  código postal: el alojamiento registra la URL entera y el fragmento no viaja.
+  Y un enlace que trae trámites elegidos consulta **solo esos**: quien lo
+  comparte ya ha elegido, y la zona entera son unos 44 segundos que nadie ha
+  pedido.
+
+Este filtro y el de la lista —distancia, franja y fecha— son de esta misma
+fase y no se parecen en nada: **este puede costar una consulta al SEPE**,
+porque puede marcarse algo que todavía no se sabe; el otro no cuesta ninguna
+nunca. Por eso viven en sitios distintos y se prueban de formas distintas.
+
 ## Los filtros no le preguntan nada al SEPE
 
 Sobre la lista que ya ha llegado se filtra por distancia, por franja y por

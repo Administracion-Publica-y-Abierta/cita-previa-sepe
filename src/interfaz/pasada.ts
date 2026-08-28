@@ -18,11 +18,19 @@ import type { FinDeLaBusqueda } from './lo-que-va-llegando'
 const RUTA = '/api/busqueda'
 
 export async function seguirLaPasada(
-  codigoPostal: string,
+  peticion: {
+    codigoPostal: string
+    /**
+     * Los trámites por los que preguntar. Sin ellos se consulta la zona
+     * entera, que es lo que pide el hero cuando nadie ha marcado nada.
+     */
+    tramites?: number[]
+  },
   alLlegar: (evento: EventoDeLaPasada) => void,
   senal?: AbortSignal,
 ): Promise<FinDeLaBusqueda> {
-  let pendientes: number[] | undefined
+  const { codigoPostal } = peticion
+  let pendientes = peticion.tramites
 
   for (;;) {
     let respuesta: Response
@@ -32,7 +40,9 @@ export async function seguirLaPasada(
         headers: { 'content-type': 'application/json' },
         // El código postal va en el cuerpo y no en la URL: el alojamiento
         // registra la URL entera de cada petición solo por existir.
-        body: JSON.stringify(pendientes ? { cp: codigoPostal, tramites: pendientes } : { cp: codigoPostal }),
+        body: JSON.stringify(
+          pendientes?.length ? { cp: codigoPostal, tramites: pendientes } : { cp: codigoPostal },
+        ),
         signal: senal,
       })
     } catch {

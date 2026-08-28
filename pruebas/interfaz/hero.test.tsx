@@ -73,10 +73,11 @@ describe('la primera pantalla', () => {
     await buscar(persona, '08402')
     await listaDeOficinas()
 
-    // Con la lista delante hay más controles —los filtros—, pero seguir
+    // Con la lista delante hay más controles —los dos filtros—, pero seguir
     // usando la web no cuesta ni un dato: el único sitio donde se escribe algo
-    // sigue siendo el código postal, y ninguno pide documento. Los filtros son
-    // de elegir entre lo que ya hay, y elegir no es entregar nada.
+    // sigue siendo el código postal, y ninguno pide documento. Las casillas,
+    // los radios y el deslizador no cuentan: eligen qué de lo que ya hay se
+    // mira, y elegir no es entregar nada.
     const donde = screen.getAllByRole('textbox').concat(screen.queryAllByRole('spinbutton'))
     expect(donde).toEqual([campoDelCodigoPostal()])
     expect(screen.queryByLabelText(/dni|nif|documento/i)).toBe(null)

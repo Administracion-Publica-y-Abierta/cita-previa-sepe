@@ -1,5 +1,5 @@
 import type { Localizacion } from '@/localizacion/geocodificador'
-import type { EstadoDeLaCola } from '@/sepe/cola'
+import type { EstadoDeLaCola, TramiteEnCola } from '@/sepe/cola'
 import type { Subtramite } from '@/sepe/niveles'
 import type { Oficina } from '@/sepe/oficinas'
 import type { EventoDeLaPasada } from '@/sepe/pasada'
@@ -53,8 +53,8 @@ export interface LoQueVaLlegando {
   consultadoEn: number | null
   /** Cómo ha ido descubrir qué trámites hay en la zona. `null` mientras no se sabe. */
   estadoDeLaCola: EstadoDeLaCola | null
-  /** Todos los trámites de la zona, en el orden del SEPE. */
-  cola: Subtramite[]
+  /** Todos los trámites de la zona, agrupados como los agrupa el SEPE y en su orden. */
+  cola: TramiteEnCola[]
   /** El que se está consultando ahora mismo, o `null` entre uno y otro. */
   consultando: Subtramite | null
   /** Lo que ha ido llegando, en el orden en que llegó. */
@@ -75,6 +75,18 @@ export const NADA_TODAVIA: LoQueVaLlegando = {
 /** Una búsqueda recién lanzada: se tira lo de la anterior, que era de otro sitio. */
 export function empezando(busqueda: number): LoQueVaLlegando {
   return { ...NADA_TODAVIA, fase: 'buscando', busqueda }
+}
+
+/**
+ * Se ha vuelto a salir al SEPE **por la misma búsqueda**: a por lo que quedaba
+ * de la pasada, o a por un trámite que se acaba de marcar.
+ *
+ * No se tira nada y no se cambia de número de búsqueda: lo traído sigue en la
+ * lista mientras el resto llega, y el mapa no vuelve a encuadrar por unas
+ * oficinas que son de la misma zona.
+ */
+export function siguiendo(estado: LoQueVaLlegando): LoQueVaLlegando {
+  return { ...estado, fase: 'buscando' }
 }
 
 /**
@@ -135,12 +147,15 @@ export function cuantosFaltan(estado: LoQueVaLlegando): number {
 export interface OficinaConSuTramite extends Oficina {
   tramite: Subtramite
   /**
-   * Cuántos trámites **más** tienen hueco en esta oficina.
+   * Cuántos trámites **más** tienen hueco en esta oficina, de los que se están
+   * mirando.
    *
    * Se enseña porque enseñar solo el más temprano sin decirlo sería dejar
-   * creer que en esa oficina solo se atiende eso. Elegir cuál se mira es el
-   * filtro de trámites, que es el issue #10; hasta entonces, al menos se dice
-   * que hay más.
+   * creer que en esa oficina solo se atiende eso. Cuál de ellos se mira lo
+   * decide el filtro de trámites, y por eso esto se cuenta sobre lo filtrado:
+   * decir «también tiene hueco para otro» de algo que el filtro ha quitado de
+   * la vista sería contar de un trámite que quien pregunta ha dicho que no le
+   * interesa.
    */
   otrosConHueco: number
 }

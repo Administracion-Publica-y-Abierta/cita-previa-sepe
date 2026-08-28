@@ -33,6 +33,14 @@ export function listaDeOficinas(): Promise<HTMLElement> {
   return waitFor(() => screen.getByRole('list', { name: /oficinas/i }))
 }
 
+/**
+ * El encabezado de los resultados, que ya no es el único de la pantalla: el
+ * filtro de trámites tiene el suyo.
+ */
+export function tituloDeLosResultados(): HTMLElement {
+  return screen.getByRole('heading', { level: 2, name: /^Resultados/i })
+}
+
 /** El campo del código postal, para mirar lo que tiene escrito. */
 export function campoDelCodigoPostal(): HTMLInputElement {
   return screen.getByLabelText(CODIGO_POSTAL) as HTMLInputElement

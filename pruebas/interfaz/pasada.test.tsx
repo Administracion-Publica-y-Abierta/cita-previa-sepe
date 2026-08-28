@@ -1,6 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { buscar, elResumen, listaDeOficinas, montarPortada } from './la-portada'
+import {
+  buscar,
+  elResumen,
+  listaDeOficinas,
+  montarPortada,
+  tituloDeLosResultados,
+} from './la-portada'
 import {
   apiQueContestaPorTurnos,
   apiQueVaContando,
@@ -9,6 +15,7 @@ import {
   oficina,
   pendientes,
   resuelto,
+  tramite,
 } from './sepe-en-el-navegador'
 
 /**
@@ -20,9 +27,9 @@ import {
  * pantalla se pueda usar mientras tanto.
  */
 
-const PRESTACION = { id: 501, nombre: 'Prestación contributiva' }
-const SUBSIDIO = { id: 502, nombre: 'Subsidio por desempleo' }
-const CERTIFICADO = { id: 503, nombre: 'Certificado de prestaciones' }
+const PRESTACION = tramite({ id: 501, nombre: 'Prestación contributiva' })
+const SUBSIDIO = tramite({ id: 502, nombre: 'Subsidio por desempleo' })
+const CERTIFICADO = tramite({ id: 503, nombre: 'Certificado de prestaciones' })
 
 function filas(lista: HTMLElement): HTMLElement[] {
   return within(lista).getAllByRole('listitem')
@@ -164,7 +171,7 @@ describe('la búsqueda que va llegando', () => {
     // «Resultados de 3 trámites» con dos que no contestaron sería prometer en
     // el título lo que la lista no tiene.
     await waitFor(() =>
-      expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      expect(tituloDeLosResultados().textContent).toBe(
         'Resultados para «Prestación contributiva»',
       ),
     )

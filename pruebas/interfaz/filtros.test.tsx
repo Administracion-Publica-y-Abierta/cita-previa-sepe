@@ -11,6 +11,7 @@ import {
   oficina,
   pasadaDeUnTramite,
   resuelto,
+  tramite,
   type ApiFalsa,
 } from './sepe-en-el-navegador'
 
@@ -347,14 +348,14 @@ describe('desde cuándo se cuentan «hoy», «esta semana» y «este mes»', () 
     // de hace un minuto. Si mandara la cola, «hoy» se leería como ayer y
     // dejaría fuera todos los huecos de hoy sin decir por qué.
     const AYER = 24 * 60 * 60 * 1000
-    const tramite = { id: 631, nombre: 'Voy a salir al extranjero' }
+    const elTramite = tramite({ id: 631, nombre: 'Voy a salir al extranjero' })
     const deHoy = oficina({ id: 1, km: 2, primerHueco: hueco(0, 9) })
 
     const persona = montarPortada()
     apiQueContesta([
-      cola([tramite], 'ok', Date.parse('2026-08-13T13:37:10+02:00') - AYER),
-      consultando(tramite),
-      resuelto({ tramite, oficinas: [deHoy] }),
+      cola([elTramite], 'ok', Date.parse('2026-08-13T13:37:10+02:00') - AYER),
+      consultando(elTramite),
+      resuelto({ tramite: elTramite, oficinas: [deHoy] }),
     ])
     await buscar(persona, '08401')
     await listaDeOficinas()
@@ -362,5 +363,80 @@ describe('desde cuándo se cuentan «hoy», «esta semana» y «este mes»', () 
     await persona.click(radio(/^hoy$/i))
 
     expect(await loQueSeVe()).toEqual([deHoy.nombre])
+  })
+})
+
+/**
+ * Los dos filtros de esta fase conviven: el de trámites, que puede costar una
+ * consulta al SEPE, y el de la lista, que no cuesta ninguna. Se prueban juntos
+ * porque escriben en la misma dirección y porque se aplican uno detrás de otro
+ * sobre las mismas oficinas: si alguno de los dos pisara al otro, sería aquí.
+ */
+describe('el filtro de trámites y el de la lista, a la vez', () => {
+  const COBRANDO = { id: 155, nombre: 'Estoy cobrando prestación/subsidio y ha cambiado mi situación' }
+  const EXTRANJERO = tramite({ id: 23, nombre: 'Voy a salir al extranjero', grupo: COBRANDO })
+  const JUBILAR = tramite({ id: 17, nombre: 'Me voy a jubilar', grupo: COBRANDO })
+
+  /** La del extranjero está cerca; la de jubilarse, lejos. */
+  const CERCA = oficina({ id: 1, nombre: 'LA DEL EXTRANJERO', km: 2, primerHueco: hueco(0, 9) })
+  const LEJOS = oficina({ id: 2, nombre: 'LA DE JUBILARSE', km: 30, primerHueco: hueco(0, 9) })
+
+  const DOS_TRAMITES = [
+    cola([EXTRANJERO, JUBILAR]),
+    resuelto({ tramite: EXTRANJERO, oficinas: [CERCA] }),
+    resuelto({ tramite: JUBILAR, oficinas: [LEJOS] }),
+  ]
+
+  it('un enlace con las dos cosas se abre con las dos puestas', async () => {
+    window.history.replaceState(null, '', '#cp=08401&t=23,17&km=5')
+    apiQueContesta(DOS_TRAMITES)
+
+    render(<Portada />)
+    await listaDeOficinas()
+
+    // Los dos trámites marcados, y de sus dos oficinas solo la que cae dentro
+    // de los cinco kilómetros.
+    await waitFor(() =>
+      expect((screen.getByRole('checkbox', { name: JUBILAR.nombre }) as HTMLInputElement).checked).toBe(true),
+    )
+    expect(await loQueSeVe()).toEqual([CERCA.nombre])
+  })
+
+  it('marcar un trámite no se lleva por delante los filtros de la lista', async () => {
+    const persona = montarPortada()
+    apiQueContesta(DOS_TRAMITES)
+    await buscar(persona, '08401')
+    await listaDeOficinas()
+
+    ponerA(screen.getByLabelText(/distancia máxima/i), 5)
+    await persona.click(screen.getByRole('checkbox', { name: EXTRANJERO.nombre }))
+
+    // Ni de la pantalla ni de la dirección: el enlace de la barra sigue siendo
+    // el de lo que se está viendo.
+    expect(await loQueSeVe()).toEqual([CERCA.nombre])
+    const fragmento = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    expect(fragmento.get('t')).toBe('23')
+    expect(fragmento.get('km')).toBe('5')
+  })
+
+  it('buscar otra zona desmarca los trámites, que son de aquella, y conserva los filtros, que no', async () => {
+    const persona = montarPortada()
+    apiQueContesta(DOS_TRAMITES)
+    await buscar(persona, '08401')
+    await listaDeOficinas()
+
+    ponerA(screen.getByLabelText(/distancia máxima/i), 5)
+    await persona.click(screen.getByRole('checkbox', { name: EXTRANJERO.nombre }))
+
+    await persona.clear(screen.getByLabelText('Código postal'))
+    await buscar(persona, '08402')
+    await listaDeOficinas()
+
+    const fragmento = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    expect(fragmento.get('cp')).toBe('08402')
+    // Los identificadores de trámite son de la zona de antes y aquí no
+    // existen; «a menos de cinco kilómetros» quiere decir lo mismo en las dos.
+    expect(fragmento.get('t')).toBe(null)
+    expect(fragmento.get('km')).toBe('5')
   })
 })
