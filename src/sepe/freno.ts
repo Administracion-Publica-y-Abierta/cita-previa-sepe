@@ -124,7 +124,7 @@ export function crearFrenoCompartido(piezas: { almacen: Almacen; reloj: Reloj })
         await almacen.guardar(VACIOS, 0, MEMORIA_DE_LOS_VACIOS_MS)
         return
       }
-      await almacen.sumar(VACIOS, 1, MEMORIA_DE_LOS_VACIOS_MS)
+      await almacen.sumarUno(VACIOS, MEMORIA_DE_LOS_VACIOS_MS)
     },
   }
 }

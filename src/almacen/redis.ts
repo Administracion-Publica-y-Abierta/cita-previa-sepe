@@ -103,9 +103,9 @@ export function crearAlmacenRedis({ fetch, url, ficha }: AjustesDeRedis): Almace
       return restante > 0 ? restante : 1
     },
 
-    async sumar(clave, cuanto, vidaMs) {
+    async sumarUno(clave, vidaMs) {
       try {
-        const sumado = Number(await ordenar(['INCRBY', clave, cuanto]))
+        const sumado = Number(await ordenar(['INCR', clave]))
         // La caducidad va aparte porque `INCRBY` no la pone. Se renueva en
         // cada suma a propósito: lo que interesa es si el SEPE está dando
         // vacíos *ahora*, no cuántos dio hace media hora.

@@ -58,12 +58,14 @@ KV_REST_API_URL=...
 KV_REST_API_TOKEN=...
 ```
 
-Opcionales, con sus valores de fábrica: `CACHE_TTL_MS` (90000),
-`CACHE_VIDA_MAXIMA_MS` (3600000) y `CACHE_ANCHO_DE_CLAVE`
-(`codigo-postal`, o `provincia` cuando alguien mida que se puede).
+Opcionales, con sus valores de fábrica: `CACHE_TTL_MS` (90000) y
+`CACHE_ANCHO_DE_CLAVE` (`codigo-postal`, o `provincia` el día que alguien mida
+que se puede).
 
-Sin esas variables la aplicación arranca igual y lo avisa por el registro: el
-freno solo vale dentro de cada invocación, que desplegado es como no tenerlo. Cómo se escribe un test aquí
+En local, sin esas variables, la aplicación arranca con el almacén en memoria y
+lo avisa por el registro. **Desplegada no arranca**: sin estado compartido el
+freno solo vale dentro de cada invocación, que es como no tenerlo, y eso es una
+avería y no un detalle de configuración. Cómo se escribe un test aquí
 —y cómo se rehacen esas grabaciones— está en [AGENTS.md](AGENTS.md).
 
 La especificación completa está en **[ESPECIFICACION.md](ESPECIFICACION.md)**:

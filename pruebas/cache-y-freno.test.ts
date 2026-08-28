@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { crearAlmacenEnMemoria } from '@/almacen/en-memoria'
+import { crearAlmacenRedis } from '@/almacen/redis'
 import { CONFIGURACION_POR_DEFECTO } from '@/nucleo/configuracion'
 import type { Busqueda } from '@/sepe/buscador'
 import {
@@ -11,7 +12,7 @@ import {
   type Freno,
 } from '@/sepe/freno'
 import { dejarCorrer } from './ayudantes/dejar-correr'
-import type { FetchFalso, RespuestaAMano } from './ayudantes/fetch-falso'
+import { alSepe, type FetchFalso, type RespuestaAMano } from './ayudantes/fetch-falso'
 import { geocodificadorConoce } from './ayudantes/geocodificador-falso'
 import {
   INSTANTE_DE_LAS_CAPTURAS,
@@ -20,6 +21,7 @@ import {
   type AppDePrueba,
   type OpcionesDeMontaje,
 } from './ayudantes/montar-app'
+import { crearRedisAveriado, FICHA_DE_REDIS, URL_DE_REDIS } from './ayudantes/redis-falso'
 import { crearRelojFalso, type RelojFalso } from './ayudantes/reloj-falso'
 import { portadaDelSepe, sepeCuerpoVacio, sepeSaturado } from './ayudantes/sepe-falso'
 
@@ -46,30 +48,25 @@ const MANRESA = { codigoPostal: '08240', municipio: 'Manresa', lat: 41.723, lng:
  */
 const VACIOS = [991, 992, 993, 994, 995, 996, 997, 998]
 
+/** Lo que hace falta en cualquier montaje: la portada y los tres códigos postales. */
+function respuestasDeBase(): RespuestaAMano[] {
+  return [
+    portadaDelSepe(),
+    geocodificadorConoce('08401', GRANOLLERS),
+    geocodificadorConoce('08402', GRANOLLERS),
+    geocodificadorConoce(MANRESA.codigoPostal, MANRESA),
+  ]
+}
+
 function montar(opciones: OpcionesDeMontaje = {}): AppDePrueba {
-  return montarApp({
-    ...opciones,
-    respuestas: [
-      ...(opciones.respuestas ?? []),
-      portadaDelSepe(),
-      geocodificadorConoce('08401', GRANOLLERS),
-      geocodificadorConoce('08402', GRANOLLERS),
-      geocodificadorConoce(MANRESA.codigoPostal, MANRESA),
-    ],
-  })
+  return montarApp({ ...opciones, respuestas: [...(opciones.respuestas ?? []), ...respuestasDeBase()] })
 }
 
 /** Otra invocación del mismo despliegue, con las mismas respuestas puestas a mano. */
-function otra(previa: AppDePrueba, opciones: OpcionesDeMontaje = {}): AppDePrueba {
+function otraApp(previa: AppDePrueba, opciones: OpcionesDeMontaje = {}): AppDePrueba {
   return otraInvocacion(previa, {
     ...opciones,
-    respuestas: [
-      ...(opciones.respuestas ?? []),
-      portadaDelSepe(),
-      geocodificadorConoce('08401', GRANOLLERS),
-      geocodificadorConoce('08402', GRANOLLERS),
-      geocodificadorConoce(MANRESA.codigoPostal, MANRESA),
-    ],
+    respuestas: [...(opciones.respuestas ?? []), ...respuestasDeBase()],
   })
 }
 
@@ -79,11 +76,6 @@ function vaciosPara(idsTramite: number[]): RespuestaAMano[] {
     ...sepeCuerpoVacio('cargaTiposAtencionMapa'),
     cuando: { idGrupoServicio: String(id) },
   }))
-}
-
-/** Solo las peticiones al SEPE: las del geocodificador no llevan freno. */
-function alSepe(fetch: FetchFalso) {
-  return fetch.llamadas.filter((l) => l.url.includes('citapreviasepe'))
 }
 
 /** Cuántas veces se le ha preguntado de verdad al SEPE por un trámite. */
@@ -126,7 +118,7 @@ describe('la caché compartida de consultas', () => {
   it('dos peticiones idénticas a la vez son una sola llamada al SEPE', async () => {
     const montaje = montar()
 
-    const [una, otra] = await dejarCorrer(
+    const [una, laOtra] = await dejarCorrer(
       montaje.reloj,
       Promise.all([
         montaje.app.buscador.buscar(CON_HUECO),
@@ -136,7 +128,7 @@ describe('la caché compartida de consultas', () => {
 
     expect(consultas(montaje.fetch)).toBe(1)
     expect(una.oficinas).toHaveLength(46)
-    expect(otra.oficinas).toHaveLength(46)
+    expect(laOtra.oficinas).toHaveLength(46)
   })
 
   it('dos invocaciones distintas a la vez tampoco consultan dos veces', async () => {
@@ -144,7 +136,7 @@ describe('la caché compartida de consultas', () => {
     // cubre: en serverless las dos peticiones simultáneas caen en procesos
     // distintos que no se conocen. Lo único que comparten es el almacén.
     const primera = montar()
-    const segunda = otra(primera)
+    const segunda = otraApp(primera)
 
     const [una, dos] = await dejarCorrer(
       primera.reloj,
@@ -220,7 +212,7 @@ describe('la caché compartida de consultas', () => {
 
     await envejecer(primera.reloj, buena, CONFIGURACION_POR_DEFECTO.ttlMs)
     // Otra invocación, ya con el SEPE contestando su página de saturación.
-    const conElSepeCaido = otra(primera, { respuestas: [sepeSaturado('cargaTiposAtencionMapa')] })
+    const conElSepeCaido = otraApp(primera, { respuestas: [sepeSaturado('cargaTiposAtencionMapa')] })
     const vieja = await buscar(conElSepeCaido, CON_HUECO)
 
     expect(vieja.estado).toBe('ok')
@@ -228,6 +220,48 @@ describe('la caché compartida de consultas', () => {
     expect(vieja.desdeCache).toBe(true)
     expect(vieja.oficinas).toHaveLength(46)
     expect(vieja.consultadoEn).toBe(buena.consultadoEn)
+  })
+
+  it('un vacío de paso no se lleva por delante la última respuesta buena', async () => {
+    const primera = montar()
+    const buena = await buscar(primera, CON_HUECO)
+
+    // El SEPE contesta vacío al mismo trámite. Es un caso medido —vacío y 46
+    // oficinas con treinta segundos de diferencia— y se sirve como lo que es.
+    await envejecer(primera.reloj, buena, CONFIGURACION_POR_DEFECTO.ttlMs)
+    const conVacio = otraApp(primera, { respuestas: [sepeCuerpoVacio('cargaTiposAtencionMapa')] })
+    const vacia = await buscar(conVacio, CON_HUECO)
+    expect(vacia.estado).toBe('sin-agenda')
+
+    // Y cuando después se cae del todo, lo que se sirve sigue siendo la buena
+    // de antes. Si el vacío hubiera ocupado su sitio, aquí no quedaría nada
+    // que enseñar y quien pregunta se llevaría una pantalla de error.
+    await envejecer(primera.reloj, vacia, CONFIGURACION_POR_DEFECTO.ttlMs)
+    const caido = otraApp(primera, { respuestas: [sepeSaturado('cargaTiposAtencionMapa')] })
+    const vieja = await buscar(caido, CON_HUECO)
+
+    expect(vieja.estado).toBe('ok')
+    expect(vieja.caducada).toBe(true)
+    expect(vieja.consultadoEn).toBe(buena.consultadoEn)
+    expect(vieja.oficinas).toHaveLength(46)
+  })
+
+  it('pasada la vida máxima ya no queda nada viejo que servir', async () => {
+    const vidaMaximaMs = 120_000
+    const primera = montar({ configuracion: { vidaMaximaMs } })
+    const buena = await buscar(primera, CON_HUECO)
+
+    await envejecer(primera.reloj, buena, vidaMaximaMs + 10_000)
+    const caido = otraApp(primera, {
+      configuracion: { vidaMaximaMs },
+      respuestas: [sepeSaturado('cargaTiposAtencionMapa')],
+    })
+    const rendida = await buscar(caido, CON_HUECO)
+
+    // Servir viejo tiene un límite: pasado ese plazo, reconocer la avería es
+    // más honrado que enseñar una lista de hace horas.
+    expect(rendida.estado).toBe('sepe-no-responde')
+    expect(rendida.oficinas).toEqual([])
   })
 })
 
@@ -281,7 +315,7 @@ describe('el freno global', () => {
     // caché que las junte, así que las cinco peticiones son de verdad. Si el
     // freno viviera en cada proceso, saldrían de dos en dos y a la vez.
     const primera = montar()
-    const segunda = otra(primera)
+    const segunda = otraApp(primera)
 
     await dejarCorrer(
       primera.reloj,
@@ -338,6 +372,26 @@ describe('el freno global', () => {
     expect(alSepe(montaje.fetch)).toHaveLength(antes)
   })
 
+  it('con el almacén compartido caído no se llama al SEPE', async () => {
+    // El caso más feo de la regla, y el que de verdad la pone a prueba: si el
+    // sitio donde vive el ritmo no contesta, no hay forma de saber a quién le
+    // toca. Se contesta que vuelva en un momento; lo que no se hace es salir
+    // corriendo hacia el SEPE porque nuestra infraestructura tuvo un mal rato.
+    const montaje = montar({
+      almacen: crearAlmacenRedis({
+        fetch: crearRedisAveriado(),
+        url: URL_DE_REDIS,
+        ficha: FICHA_DE_REDIS,
+      }),
+    })
+
+    const rendida = await buscar(montaje, CON_HUECO)
+
+    expect(rendida.estado).toBe('vuelve-en-un-momento')
+    expect(rendida.oficinas).toEqual([])
+    expect(alSepe(montaje.fetch)).toHaveLength(0)
+  })
+
   it('sin ficha, antes lo caducado que nada', async () => {
     const montaje = montar()
     const buena = await buscar(montaje, CON_HUECO)
@@ -364,16 +418,25 @@ describe('el techo del freno', () => {
     return { freno: crearFrenoCompartido({ almacen: crearAlmacenEnMemoria(reloj), reloj }), reloj }
   }
 
-  it('por muchos vacíos que haya, la pausa no pasa de dos minutos', async () => {
+  it('por muchos vacíos que haya, la pausa dura exactamente el techo', async () => {
     const { freno, reloj } = frenoSuelto()
     for (let i = 0; i < 20; i += 1) await freno.anotar('vacia')
 
     await freno.fichar() // la ficha estaba libre: esta no espera a nadie
 
-    // Con veinte vacíos y sin techo, doblar daría más de tres minutos y a los
-    // dos seguiría sin haber ficha.
-    await reloj.avanzar(TECHO_MS)
-    await expect(freno.fichar()).resolves.toBeUndefined()
+    // Un milisegundo antes del techo todavía no hay ficha, y justo en el techo
+    // la hay. Con veinte vacíos y sin tope, doblar daría más de tres minutos.
+    await reloj.avanzar(TECHO_MS - 1)
+    let dada = false
+    const siguiente = freno.fichar().then(() => {
+      dada = true
+    })
+    await reloj.avanzar(0)
+    expect(dada).toBe(false)
+
+    await reloj.avanzar(1)
+    await siguiente
+    expect(dada).toBe(true)
   })
 
   it('y mientras tanto no deja pasar a nadie', async () => {

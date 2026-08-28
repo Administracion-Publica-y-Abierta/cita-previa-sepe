@@ -1,4 +1,3 @@
-import { crearAlmacenEnMemoria } from '@/almacen/en-memoria'
 import type { Almacen } from '@/almacen/almacen'
 import { crearGeocodificador, type Geocodificador } from '@/localizacion/geocodificador'
 import { crearBuscador, type Buscador } from '@/sepe/buscador'
@@ -38,16 +37,16 @@ export interface App {
  * costura que ya había.
  */
 export interface Ajustes {
-  /** Dónde vive el estado compartido. Por defecto, la memoria de este proceso. */
-  almacen?: Almacen
+  /** Dónde vive el estado compartido: el freno y la caché. */
+  almacen: Almacen
   /** Lo poco que se ajusta sin tocar código; lo que no se diga, por defecto. */
   configuracion?: Partial<Configuracion>
 }
 
-export function crearApp(dependencias: Dependencias, ajustes: Ajustes = {}): App {
+export function crearApp(dependencias: Dependencias, ajustes: Ajustes): App {
   const { fetch, reloj } = dependencias
   const geocodificador = crearGeocodificador(dependencias)
-  const almacen = ajustes.almacen ?? crearAlmacenEnMemoria(reloj)
+  const { almacen } = ajustes
   const configuracion = { ...CONFIGURACION_POR_DEFECTO, ...ajustes.configuracion }
 
   // El freno se sostiene en el almacén compartido y no en variables de este

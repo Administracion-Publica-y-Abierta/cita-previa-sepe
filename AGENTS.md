@@ -45,8 +45,8 @@ Lo que devuelve:
 
 Admite `respuestas` —respuestas puestas a mano para los caminos que no hay
 grabados: un error, un HTML de saturación—, `instanteInicial`, por si un test
-necesita otra fecha, y `configuracion`, para el TTL de la caché y el ancho de
-su clave. El reloj arranca por defecto en el instante de la segunda captura,
+necesita otra fecha, y `configuracion`, para el TTL de la caché, cuánto se
+conserva una respuesta buena y el ancho de la clave. El reloj arranca por defecto en el instante de la segunda captura,
 para que las fechas de los fixtures sigan siendo futuro.
 
 Devuelve además el `almacen`, que es donde viven el freno y la caché. Sirve
@@ -91,6 +91,27 @@ por encima del `fetch`, o sea de la costura que ya había: los tests lo
 ejercitan de verdad, con un Redis de mentira que habla su protocolo REST.
 `pruebas/almacen.test.ts` pasa la misma batería a los dos, que es lo que hace
 que probar contra el de memoria diga algo sobre el que va desplegado.
+
+### La única excepción: el techo del freno
+
+Dos tests de `pruebas/cache-y-freno.test.ts` no montan la aplicación y hablan
+con `crearFrenoCompartido` directamente. Está escrito aquí porque saltarse la
+regla en silencio es peor que la excepción:
+
+- **El techo de dos minutos no se ve desde arriba.** Quien pide ficha se rinde
+  a los quince segundos, así que en cuanto el ritmo se endurece de verdad deja
+  de haber peticiones —y de haber vacíos que lo endurezcan más—. Por encima de
+  la costura, cualquier techo entre quince segundos y dos minutos se comporta
+  igual. Medirlo exige preguntarle al freno.
+- **Endurecerlo con búsquedas de verdad lo decide el jitter.** Con el ritmo ya
+  doblado, la pausa que sale cae a un lado o a otro del plazo según el azar, y
+  el test pasaría unas veces sí y otras no. Se le anotan los vacíos al freno y
+  se acabó la moneda al aire.
+
+Todo lo demás —caché, single-flight, ritmo, servir viejo, no saltarse el
+freno— entra por `montarApp()` y se mide contando peticiones en el `fetch`
+falso. Si mañana aparece una forma de ver el techo desde arriba, estos dos
+tests sobran.
 
 ### Qué es un buen test aquí
 

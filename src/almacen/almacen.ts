@@ -31,8 +31,8 @@ export interface Almacen {
    */
   reservar(clave: string, vidaMs: number): Promise<number>
 
-  /** Suma y devuelve el resultado, sin leer-modificar-escribir por nuestra parte. */
-  sumar(clave: string, cuanto: number, vidaMs: number): Promise<number>
+  /** Suma uno y devuelve el resultado, sin leer-modificar-escribir por nuestra parte. */
+  sumarUno(clave: string, vidaMs: number): Promise<number>
 
   /** Suelta una clave antes de que caduque. */
   olvidar(clave: string): Promise<void>

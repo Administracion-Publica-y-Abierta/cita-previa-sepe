@@ -86,19 +86,19 @@ for (const { nombre, crear } of IMPLEMENTACIONES) {
     it('cuenta desde cero y acumula, sin que nadie lea y escriba por su cuenta', async () => {
       const { almacen } = montar()
 
-      expect(await almacen.sumar('vacios', 1, UN_MINUTO)).toBe(1)
-      expect(await almacen.sumar('vacios', 1, UN_MINUTO)).toBe(2)
+      expect(await almacen.sumarUno('vacios', UN_MINUTO)).toBe(1)
+      expect(await almacen.sumarUno('vacios', UN_MINUTO)).toBe(2)
       expect(await almacen.leer('vacios')).toBe(2)
     })
 
     it('la cuenta también caduca: un rato sin tráfico y se empieza de nuevo', async () => {
       const { almacen, reloj } = montar()
-      await almacen.sumar('vacios', 3, UN_MINUTO)
+      for (let i = 0; i < 3; i += 1) await almacen.sumarUno('vacios', UN_MINUTO)
 
       await reloj.avanzar(UN_MINUTO)
 
       expect(await almacen.leer('vacios')).toBeNull()
-      expect(await almacen.sumar('vacios', 1, UN_MINUTO)).toBe(1)
+      expect(await almacen.sumarUno('vacios', UN_MINUTO)).toBe(1)
     })
 
     it('una reserva conseguida se ve desde fuera, que es como se sabe que alguien está en ello', async () => {

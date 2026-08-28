@@ -43,8 +43,8 @@ export function crearAlmacenEnMemoria(reloj: Reloj): Almacen {
       return 0
     },
 
-    async sumar(clave, cuanto, vidaMs) {
-      const sumado = Number(vigente(clave)?.valor ?? 0) + cuanto
+    async sumarUno(clave, vidaMs) {
+      const sumado = Number(vigente(clave)?.valor ?? 0) + 1
       datos.set(clave, { valor: sumado, caducaEn: reloj.ahora() + vidaMs })
       return sumado
     },

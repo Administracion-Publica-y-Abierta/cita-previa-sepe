@@ -2,9 +2,9 @@
  * Los pocos números que se ajustan sin tocar código.
  *
  * La lista es corta a propósito: un parámetro es una decisión que se aplaza, y
- * aplazar decisiones sale caro. Están aquí los tres que **hoy no se pueden
- * decidir bien** porque no hay nada medido —cuánto vale una respuesta guardada
- * y con qué grano se agrupan las consultas—, y ninguno más.
+ * aplazar decisiones sale caro. Se tocan por entorno los dos que **hoy no se
+ * pueden decidir bien** porque no hay nada medido: cuánto vale una respuesta
+ * guardada y con qué grano se agrupan las consultas. Y ninguno más.
  *
  * El ritmo de peticiones al SEPE **no está aquí y no va a estarlo**: no es un
  * ajuste, es la regla de `CONTRIBUTING.md`.
@@ -48,7 +48,10 @@ export const CONFIGURACION_POR_DEFECTO: Configuracion = {
 export function configuracionDelEntorno(entorno: NodeJS.ProcessEnv = process.env): Configuracion {
   return {
     ttlMs: numero(entorno.CACHE_TTL_MS, CONFIGURACION_POR_DEFECTO.ttlMs),
-    vidaMaximaMs: numero(entorno.CACHE_VIDA_MAXIMA_MS, CONFIGURACION_POR_DEFECTO.vidaMaximaMs),
+    // `vidaMaximaMs` no se toca por entorno: no es una decisión aplazada sino
+    // cuánto tiempo tiene sentido enseñar un dato viejo, y eso no depende del
+    // despliegue. Los tests sí lo cambian, para no esperar una hora.
+    vidaMaximaMs: CONFIGURACION_POR_DEFECTO.vidaMaximaMs,
     anchoDeClave:
       entorno.CACHE_ANCHO_DE_CLAVE === 'provincia' ? 'provincia' : CONFIGURACION_POR_DEFECTO.anchoDeClave,
   }

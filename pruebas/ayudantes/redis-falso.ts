@@ -59,9 +59,9 @@ export function crearRedisFalso(reloj: Reloj): Fetch {
         return entrada ? entrada.caducaEn - reloj.ahora() : -2
       }
 
-      case 'INCRBY': {
+      case 'INCR': {
         const entrada = vigente(clave)
-        const sumado = Number(entrada?.valor ?? 0) + Number(resto[0])
+        const sumado = Number(entrada?.valor ?? 0) + 1
         // Sin caducidad todavía: la pone el PEXPIRE que viene detrás, igual
         // que en Redis de verdad.
         datos.set(clave, { valor: String(sumado), caducaEn: entrada?.caducaEn ?? Number.POSITIVE_INFINITY })
@@ -95,5 +95,18 @@ export function crearRedisFalso(reloj: Reloj): Fetch {
       status: 200,
       headers: { 'content-type': 'application/json' },
     })
+  }
+}
+
+/**
+ * El almacén compartido, caído.
+ *
+ * No contesta a nada: ni a una lectura, ni a un borrado, ni al reparto de
+ * fichas. Es el caso que de verdad hay que probar, porque es donde se decide
+ * si el freno falla abierto o cerrado.
+ */
+export function crearRedisAveriado(): Fetch {
+  return async () => {
+    throw new TypeError('fetch failed')
   }
 }

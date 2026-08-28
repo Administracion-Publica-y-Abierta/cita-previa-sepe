@@ -26,6 +26,12 @@ export interface OpcionesDeMontaje {
    * sobre el valor que tenga hoy.
    */
   configuracion?: Partial<Configuracion>
+  /**
+   * Otro almacén. Por defecto, el de memoria, que es el que corre en local.
+   * Se pasa para lo único que no se puede montar de otra forma: probar qué
+   * hace la aplicación cuando el almacén compartido no contesta.
+   */
+  almacen?: Almacen
 }
 
 export interface AppDePrueba {
@@ -48,7 +54,7 @@ export interface AppDePrueba {
 export function montarApp(opciones: OpcionesDeMontaje = {}): AppDePrueba {
   const reloj = crearRelojFalso(opciones.instanteInicial ?? INSTANTE_DE_LAS_CAPTURAS)
   const fetch = crearFetchFalso({ reloj, respuestas: opciones.respuestas })
-  const almacen = crearAlmacenEnMemoria(reloj)
+  const almacen = opciones.almacen ?? crearAlmacenEnMemoria(reloj)
   const app = crearApp({ fetch, reloj }, { almacen, configuracion: opciones.configuracion })
 
   // Los Route Handlers no reciben la aplicación por parámetro —la firma la pone

@@ -157,7 +157,7 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
       }
 
       if (ok) {
-        const salida = loQueSalga(() => interpretar(cuerpo))
+        const salida = interpretarSiSePuede(() => interpretar(cuerpo))
         if (salida.bien) {
           await freno.anotar('buena')
           return salida.valor
@@ -201,7 +201,7 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
  * anotación al freno que fallara se leería como "la respuesta no valía" y
  * costaría una sesión nueva y dos pausas por nada.
  */
-function loQueSalga<T>(interpretar: () => T): { bien: true; valor: T } | { bien: false } {
+function interpretarSiSePuede<T>(interpretar: () => T): { bien: true; valor: T } | { bien: false } {
   try {
     return { bien: true, valor: interpretar() }
   } catch {

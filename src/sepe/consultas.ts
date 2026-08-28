@@ -91,8 +91,29 @@ export function crearCacheDeConsultas(piezas: {
 }): CacheDeConsultas {
   const { almacen, reloj, configuracion } = piezas
 
+  /**
+   * La edad se mide desde que se le preguntó al SEPE y no desde que se guardó
+   * la respuesta. El almacén la borra sola al vencer el TTL, pero esos dos
+   * instantes no son el mismo —entre la consulta y la escritura pasa lo que
+   * pasa— y lo que hay que prometer es lo primero.
+   */
   function fresca(guardada: Consultado): boolean {
     return reloj.ahora() - guardada.consultadoEn < configuracion.ttlMs
+  }
+
+  /**
+   * Se intenta el cerrojo, y si el almacén no contesta se sigue adelante.
+   *
+   * Aquí fallar abierto no hace daño: como mucho dos invocaciones consultan lo
+   * mismo. El que no puede fallar abierto es el freno, y no lo hace: sin
+   * almacén no reparte fichas, y sin ficha no se llama al SEPE.
+   */
+  async function tomarElCerrojo(cerrojo: string): Promise<boolean> {
+    try {
+      return (await almacen.reservar(cerrojo, MAXIMO_DE_UNA_CONSULTA_MS)) === 0
+    } catch {
+      return true
+    }
   }
 
   function servir(consultado: Consultado, desdeCache: boolean, caducada = false): Servido {
@@ -100,15 +121,18 @@ export function crearCacheDeConsultas(piezas: {
   }
 
   /**
-   * Cuando la consulta de ahora no ha salido bien, lo último bueno que haya,
-   * marcado como viejo.
+   * Cuando la consulta de ahora no ha salido bien, la última buena que haya,
+   * marcada como vieja.
    *
-   * Solo sirve de respaldo una respuesta `ok`: un `sin-agenda` de hace media
-   * hora no le dice nada a nadie, y disfrazarlo de dato viejo sería peor que
-   * reconocer la avería.
+   * Sale de su propia clave y no de la de la última respuesta. La diferencia
+   * importa: está medido que el mismo trámite devuelve vacío y 46 oficinas con
+   * treinta segundos de diferencia, así que si las dos compartieran sitio, un
+   * solo vacío de paso se llevaría por delante lo único de lo que se puede
+   * tirar cuando el SEPE se cae de verdad.
    */
-  function respaldo(fallida: Consultado, guardada: Consultado | null): Servido {
-    if (guardada?.estado === 'ok') return servir(guardada, true, true)
+  async function respaldo(fallida: Consultado, clave: string): Promise<Servido> {
+    const buena = await almacen.leer<Consultado>(claveDeLaBuena(clave))
+    if (buena) return servir(buena, true, true)
     return servir(fallida, false)
   }
 
@@ -120,11 +144,7 @@ export function crearCacheDeConsultas(piezas: {
    * llegar a este punto ya se había comprobado que no había ninguna, y el
    * tiempo solo va hacia delante.
    */
-  async function esperarAlQueConsulta(
-    clave: string,
-    cerrojo: string,
-    previa: Consultado | null,
-  ): Promise<Servido> {
+  async function esperarAlQueConsulta(clave: string, cerrojo: string): Promise<Servido> {
     const limite = reloj.ahora() + PLAZO_DE_ESPERA_MS
 
     for (;;) {
@@ -139,7 +159,7 @@ export function crearCacheDeConsultas(piezas: {
       if (reloj.ahora() >= limite) break
     }
 
-    return respaldo({ estado: 'vuelve-en-un-momento', consultadoEn: reloj.ahora(), oficinas: [] }, previa)
+    return respaldo({ estado: 'vuelve-en-un-momento', consultadoEn: reloj.ahora(), oficinas: [] }, clave)
   }
 
   return {
@@ -150,24 +170,27 @@ export function crearCacheDeConsultas(piezas: {
       const guardada = await almacen.leer<Consultado>(clave)
       if (guardada && fresca(guardada)) return servir(guardada, true)
 
-      if ((await almacen.reservar(cerrojo, MAXIMO_DE_UNA_CONSULTA_MS)) > 0) {
-        return esperarAlQueConsulta(clave, cerrojo, guardada)
-      }
+      if (!(await tomarElCerrojo(cerrojo))) return esperarAlQueConsulta(clave, cerrojo)
 
       try {
         const consultado = await consultar()
 
         // Se guarda lo que el SEPE haya contestado, incluido el vacío: un
-        // `sin-agenda` es una respuesta suya y repetirla durante el TTL es
-        // justo lo que evita insistirle cuando ya está diciendo que no puede.
-        // Una avería no se guarda: taparía la última respuesta buena, que es
-        // de lo único que se puede tirar mientras esté caído.
+        // `sin-agenda` es una respuesta suya, y repetirla mientras dure el TTL
+        // es lo que evita insistirle cuando ya está diciendo que no puede.
+        // Una avería no se guarda: no es una respuesta.
         if (consultado.estado === 'ok' || consultado.estado === 'sin-agenda') {
-          await almacen.guardar(clave, consultado, configuracion.vidaMaximaMs)
+          await almacen.guardar(clave, consultado, configuracion.ttlMs)
+          // La buena, además, aparte y para mucho más rato: es el respaldo del
+          // día que el SEPE no conteste, y ni un vacío ni otra consulta más
+          // reciente pueden llevársela por delante.
+          if (consultado.estado === 'ok') {
+            await almacen.guardar(claveDeLaBuena(clave), consultado, configuracion.vidaMaximaMs)
+          }
           return servir(consultado, false)
         }
 
-        return respaldo(consultado, guardada)
+        return respaldo(consultado, clave)
       } finally {
         await almacen.olvidar(cerrojo)
       }
@@ -182,4 +205,9 @@ export function crearCacheDeConsultas(piezas: {
 function claveDe({ codigoPostal, idTramite }: ClaveDeConsulta, ancho: AnchoDeClave): string {
   const zona = ancho === 'provincia' ? codigoPostal.slice(0, 2) : codigoPostal
   return `consulta:${zona}:${idTramite}`
+}
+
+/** Donde vive la última respuesta buena, que dura más que la última a secas. */
+function claveDeLaBuena(clave: string): string {
+  return `${clave}:buena`
 }
