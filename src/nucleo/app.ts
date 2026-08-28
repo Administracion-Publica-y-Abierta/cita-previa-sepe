@@ -1,3 +1,4 @@
+import { crearGeocodificador, type Geocodificador } from '@/localizacion/geocodificador'
 import type { Dependencias } from './dependencias'
 
 /**
@@ -11,8 +12,13 @@ import type { Dependencias } from './dependencias'
  */
 export interface App {
   dependencias: Dependencias
+  /** Código postal → coordenadas, con el centroide provincial de reserva. */
+  geocodificador: Geocodificador
 }
 
 export function crearApp(dependencias: Dependencias): App {
-  return { dependencias }
+  return {
+    dependencias,
+    geocodificador: crearGeocodificador(dependencias),
+  }
 }

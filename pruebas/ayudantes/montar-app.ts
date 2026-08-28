@@ -1,4 +1,5 @@
 import { crearApp, type App } from '@/nucleo/app'
+import { instalarApp } from '@/nucleo/app-de-produccion'
 import { crearFetchFalso, type FetchFalso, type RespuestaAMano } from './fetch-falso'
 import { crearRelojFalso, type RelojFalso } from './reloj-falso'
 
@@ -36,5 +37,12 @@ export interface AppDePrueba {
 export function montarApp(opciones: OpcionesDeMontaje = {}): AppDePrueba {
   const reloj = crearRelojFalso(opciones.instanteInicial ?? INSTANTE_DE_LAS_CAPTURAS)
   const fetch = crearFetchFalso({ reloj, respuestas: opciones.respuestas })
-  return { app: crearApp({ fetch, reloj }), fetch, reloj }
+  const app = crearApp({ fetch, reloj })
+
+  // Los Route Handlers no reciben la aplicación por parámetro —la firma la pone
+  // Next—, así que se les deja puesta esta. Es lo que permite que un test entre
+  // por la ruta de verdad sin salir a la red de verdad.
+  instalarApp(app)
+
+  return { app, fetch, reloj }
 }
