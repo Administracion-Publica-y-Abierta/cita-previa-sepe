@@ -1,19 +1,30 @@
 import { avisoDe, soloDigitos } from './codigo-postal'
 
 /**
- * Las dos únicas cosas que esta web recuerda, y las dos viven en el navegador
- * de quien pregunta: el último código postal usado y el de la búsqueda que
- * está mirando.
+ * Lo poco que esta web recuerda, y todo ello en el navegador de quien
+ * pregunta: el último código postal usado, y la búsqueda que está mirando —su
+ * código postal y los trámites que haya marcado—.
  *
- * Ninguna de las dos toca un servidor nuestro. Es lo que permite que la
- * portada diga que no guardamos ningún dato sin tener que matizarlo con letra
- * pequeña.
+ * Nada de esto toca un servidor nuestro. Es lo que permite que la portada diga
+ * que no guardamos ningún dato sin tener que matizarlo con letra pequeña.
  */
 
 const CLAVE = 'ultimo-codigo-postal'
 
 /** El nombre del parámetro dentro del fragmento: `#cp=08401`. */
 const PARAMETRO = 'cp'
+
+/** Los trámites marcados, separados por comas: `#cp=08401&t=23,17`. */
+const TRAMITES = 't'
+
+/**
+ * Ninguno, y siempre el mismo array.
+ *
+ * `useSyncExternalStore` compara la instantánea con `Object.is`: una lista
+ * vacía recién hecha en cada lectura sería distinta de la anterior y la
+ * pantalla se repintaría sin parar.
+ */
+const NINGUNO: number[] = []
 
 /**
  * La búsqueda va en el **fragmento** de la URL y no en la cadena de consulta.
@@ -34,14 +45,55 @@ export function codigoPostalDeLaDireccion(): string {
 }
 
 /**
+ * Los trámites marcados que trae el enlace, para poder compartir una búsqueda
+ * con sus trámites ya elegidos.
+ *
+ * Se recuerda lo leído mientras el fragmento no cambie por lo mismo que
+ * `NINGUNO`: esto es la instantánea de un `useSyncExternalStore`, y una lista
+ * nueva en cada lectura sería un repintado infinito.
+ */
+let ultimoFragmento: string | null = null
+let ultimosTramites: number[] = NINGUNO
+
+export function tramitesDeLaDireccion(): number[] {
+  const fragmento = window.location.hash
+  if (fragmento !== ultimoFragmento) {
+    ultimoFragmento = fragmento
+    ultimosTramites = losTramitesDe(fragmento)
+  }
+  return ultimosTramites
+}
+
+/**
+ * Lo que venga en el enlace se comprueba como si lo hubiera tecleado alguien:
+ * un fragmento lo escribe cualquiera. Aquí solo se exige que sean números; que
+ * además existan en la zona lo decide quien mira la cola, que es el único que
+ * lo sabe.
+ */
+function losTramitesDe(fragmento: string): number[] {
+  const marcados = new URLSearchParams(fragmento.replace(/^#/, '')).get(TRAMITES)
+  if (!marcados) return NINGUNO
+
+  const ids = marcados
+    .split(',')
+    .map((id) => Number(id))
+    .filter((id) => Number.isSafeInteger(id) && id > 0)
+
+  return ids.length ? [...new Set(ids)] : NINGUNO
+}
+
+/**
  * Deja la búsqueda escrita en la dirección, sin apuntarla en el historial.
  *
  * `replaceState` y no `pushState` porque cada consulta no es un sitio nuevo
  * donde se ha estado: con `pushState`, volver atrás desde la lista recorrería
  * una a una todas las búsquedas de la sesión en vez de salir de la web.
  */
-export function ponerEnLaDireccion(codigoPostal: string): void {
-  window.history.replaceState(null, '', `#${PARAMETRO}=${codigoPostal}`)
+export function ponerEnLaDireccion(codigoPostal: string, tramites: number[]): void {
+  // Sin marcar nada se enseñan todos, así que el parámetro sobra: un enlace
+  // con la lista entera dentro diría lo mismo y sería ilegible.
+  const marcados = tramites.length > 0 ? `&${TRAMITES}=${tramites.join(',')}` : ''
+  window.history.replaceState(null, '', `#${PARAMETRO}=${codigoPostal}${marcados}`)
 }
 
 /**
