@@ -39,11 +39,14 @@ const SIN_HUECO = 23
 
 const URL_DE_LA_RUTA = 'http://localhost/api/busqueda'
 
+/** El trámite de nivel 2 del que cuelgan los subtrámites de `arbolCon`. */
+const EL_GRUPO = { id: 901, nombre: 'Un trámite' }
+
 /** Un árbol de una rama y un trámite, cuyos subtrámites son los que se le digan. */
 function arbolCon(subtramites: { id: number; nombre: string }[]) {
   return [
     nivelesDelSepe(1, '', [{ id: 900, nombre: 'PRESTACIONES' }]),
-    nivelesDelSepe(2, '900', [{ id: 901, nombre: 'Un trámite' }]),
+    nivelesDelSepe(2, '900', [EL_GRUPO]),
     subtramitesDelSepe(901, subtramites),
   ]
 }
@@ -185,9 +188,34 @@ describe('la búsqueda progresiva', () => {
       ],
     })
 
+    // Cada trámite viaja con el trámite de nivel 2 del que cuelga: es la forma
+    // en que el SEPE los agrupa en su sede —el combo «Trámite» y debajo el
+    // combo «Subtrámite»— y es por ese par de nombres por el que quien pregunta
+    // reconoce el suyo.
     expect(laCola(eventos).tramites).toEqual([
-      { id: 501, nombre: 'El primero' },
-      { id: 502, nombre: 'El segundo' },
+      { id: 501, nombre: 'El primero', grupo: EL_GRUPO },
+      { id: 502, nombre: 'El segundo', grupo: EL_GRUPO },
+    ])
+  })
+
+  it('el grupo de cada trámite es el que le pone el SEPE, y no uno nuestro', async () => {
+    const { eventos } = await buscar('08401', {
+      respuestas: [
+        nivelesDelSepe(1, '', [{ id: 900, nombre: 'PRESTACIONES' }]),
+        nivelesDelSepe(2, '900', [
+          { id: 901, nombre: 'He finalizado un trabajo' },
+          { id: 902, nombre: 'Estoy cobrando y ha cambiado mi situación' },
+        ]),
+        subtramitesDelSepe(901, [{ id: 501, nombre: 'De uno' }]),
+        subtramitesDelSepe(902, [{ id: 502, nombre: 'Del otro' }]),
+        mapaDelSepe(501, [{ idOficina: 1 }]),
+        mapaDelSepe(502, [{ idOficina: 2 }]),
+      ],
+    })
+
+    expect(laCola(eventos).tramites.map((tramite) => tramite.grupo.nombre)).toEqual([
+      'He finalizado un trabajo',
+      'Estoy cobrando y ha cambiado mi situación',
     ])
   })
 
@@ -392,7 +420,9 @@ describe('lo que una invocación se permite', () => {
     expect(consultados.length).toBeLessThan(nueve.length)
     expect(pendientes).toBeDefined()
     // Lo que falta es exactamente lo que no se ha consultado, en el mismo orden.
-    expect(pendientes?.tramites).toEqual(nueve.slice(consultados.length))
+    expect(pendientes?.tramites).toEqual(
+      nueve.slice(consultados.length).map((tramite) => ({ ...tramite, grupo: EL_GRUPO })),
+    )
     expect(eventos.at(-1)).toBe(pendientes)
   })
 

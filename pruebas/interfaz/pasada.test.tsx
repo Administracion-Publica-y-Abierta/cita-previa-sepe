@@ -1,6 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { buscar, listaDeOficinas, montarPortada } from './la-portada'
+import {
+  buscar,
+  elResumen,
+  listaDeOficinas,
+  montarPortada,
+  tituloDeLosResultados,
+} from './la-portada'
 import {
   apiQueContestaPorTurnos,
   apiQueVaContando,
@@ -9,6 +15,7 @@ import {
   oficina,
   pendientes,
   resuelto,
+  tramite,
 } from './sepe-en-el-navegador'
 
 /**
@@ -20,9 +27,9 @@ import {
  * pantalla se pueda usar mientras tanto.
  */
 
-const PRESTACION = { id: 501, nombre: 'Prestación contributiva' }
-const SUBSIDIO = { id: 502, nombre: 'Subsidio por desempleo' }
-const CERTIFICADO = { id: 503, nombre: 'Certificado de prestaciones' }
+const PRESTACION = tramite({ id: 501, nombre: 'Prestación contributiva' })
+const SUBSIDIO = tramite({ id: 502, nombre: 'Subsidio por desempleo' })
+const CERTIFICADO = tramite({ id: 503, nombre: 'Certificado de prestaciones' })
 
 function filas(lista: HTMLElement): HTMLElement[] {
   return within(lista).getAllByRole('listitem')
@@ -67,16 +74,16 @@ describe('la búsqueda que va llegando', () => {
 
     // Una pantalla callada cuarenta segundos es una pantalla que parece
     // colgada, y quien la ve así se va antes de que llegue nada.
-    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/prestación contributiva/i))
-    expect(screen.getByRole('status').textContent).toMatch(/faltan 3 trámites/i)
+    await waitFor(() => expect(elResumen().textContent).toMatch(/prestación contributiva/i))
+    expect(elResumen().textContent).toMatch(/faltan 3 trámites/i)
 
     api.contar(resuelto({ tramite: PRESTACION, oficinas: [oficina({ id: 1 })] }))
     api.contar(consultando(SUBSIDIO))
 
-    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/subsidio por desempleo/i))
-    expect(screen.getByRole('status').textContent).toMatch(/faltan 2 trámites/i)
+    await waitFor(() => expect(elResumen().textContent).toMatch(/subsidio por desempleo/i))
+    expect(elResumen().textContent).toMatch(/faltan 2 trámites/i)
     // Y lo que ya ha llegado se sigue contando mientras el resto viene.
-    expect(screen.getByRole('status').textContent).toMatch(/1 oficina/i)
+    expect(elResumen().textContent).toMatch(/1 oficina/i)
   })
 
   it('la pantalla se puede usar mientras siguen llegando resultados', async () => {
@@ -95,7 +102,7 @@ describe('la búsqueda que va llegando', () => {
     // no se quedan bloqueados esperando a que termine.
     await persona.hover(filas(await listaDeOficinas())[0])
     expect(filas(await listaDeOficinas())[0].getAttribute('aria-current')).toBe('true')
-    expect(screen.getByRole('status').textContent).toMatch(/falta/i)
+    expect(elResumen().textContent).toMatch(/falta/i)
 
     api.cerrar()
   })
@@ -164,7 +171,7 @@ describe('la búsqueda que va llegando', () => {
     // «Resultados de 3 trámites» con dos que no contestaron sería prometer en
     // el título lo que la lista no tiene.
     await waitFor(() =>
-      expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(
+      expect(tituloDeLosResultados().textContent).toBe(
         'Resultados para «Prestación contributiva»',
       ),
     )
@@ -229,9 +236,9 @@ describe('cuando la pasada no cabe en una respuesta', () => {
     await buscar(persona, '08402')
 
     await waitFor(() =>
-      expect(screen.getByRole('status').textContent).toMatch(/han quedado 2 trámites sin consultar/i),
+      expect(elResumen().textContent).toMatch(/han quedado 2 trámites sin consultar/i),
     )
     // Y lo que sí llegó se sigue contando: no se tira nada.
-    expect(screen.getByRole('status').textContent).toMatch(/1 oficina/i)
+    expect(elResumen().textContent).toMatch(/1 oficina/i)
   })
 })

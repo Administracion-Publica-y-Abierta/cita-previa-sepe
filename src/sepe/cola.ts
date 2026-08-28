@@ -31,12 +31,38 @@ import type { Subtramite } from './niveles'
  */
 export type EstadoDeLaCola = EstadoDeLaConsulta | 'sin-tramites'
 
+/**
+ * El trámite de nivel 2 del que cuelga un consultable.
+ *
+ * Es la forma en que el SEPE agrupa los suyos, y no una nuestra: en su sede se
+ * elige primero en el combo «Trámite» y después en el de «Subtrámite», y el
+ * segundo cuelga del primero. El nivel 1 no entra —lo llama «Tipo de oficina»,
+ * que no agrupa trámites— y con eso el grupo es exactamente lo que quien
+ * pregunta va a volver a ver allí.
+ */
+export interface GrupoDeTramites {
+  id: number
+  nombre: string
+}
+
+/**
+ * Un trámite de la cola: el consultable de nivel 3, y de qué grupo del SEPE
+ * viene.
+ *
+ * El grupo viaja pegado a cada trámite y no aparte porque la cola es una fila
+ * —se consulta en el orden del SEPE— y no un árbol: quien la recorre no
+ * necesita la agrupación, y quien la enseña la rehace mirando este campo.
+ */
+export interface TramiteEnCola extends Subtramite {
+  grupo: GrupoDeTramites
+}
+
 export interface Cola {
   estado: EstadoDeLaCola
   /** Instante real de la consulta al SEPE, para poder decir de cuándo es el dato. */
   consultadoEn: number
   /** Los trámites consultables, en el orden en que los manda el SEPE. */
-  tramites: Subtramite[]
+  tramites: TramiteEnCola[]
 }
 
 export interface ColaDeTramites {
@@ -55,14 +81,22 @@ export interface ColaDeTramites {
 export const VIDA_DE_LA_COLA_MS = 86_400_000
 
 /**
- * Los trámites consultables del árbol, aplanados en el orden del SEPE.
+ * Los trámites consultables del árbol, aplanados en el orden del SEPE y cada
+ * uno con el grupo del que cuelga.
  *
  * Consultable quiere decir de nivel 3: es el único nivel cuyo identificador
  * entiende el mapa. Los trámites cuyo combo viene vacío —un caso real— no
  * aportan ninguno y no paran el recorrido.
  */
-export function tramitesDelArbol(arbol: ArbolDeTramites): Subtramite[] {
-  return arbol.ramas.flatMap((rama) => rama.tramites.flatMap((tramite) => tramite.subtramites))
+export function tramitesDelArbol(arbol: ArbolDeTramites): TramiteEnCola[] {
+  return arbol.ramas.flatMap((rama) =>
+    rama.tramites.flatMap((tramite) =>
+      tramite.subtramites.map((subtramite) => ({
+        ...subtramite,
+        grupo: { id: tramite.id, nombre: tramite.nombre },
+      })),
+    ),
+  )
 }
 
 export function crearColaDeTramites(piezas: {
@@ -78,7 +112,13 @@ export function crearColaDeTramites(piezas: {
    */
   async function recordada(clave: string): Promise<Cola | null> {
     try {
-      return await almacen.leer<Cola>(clave)
+      const guardada = await almacen.leer<Cola>(clave)
+      // Una cola guardada antes de que los trámites llevasen su grupo se
+      // descarta y se vuelve a descubrir. Es un día de colas viejas como
+      // mucho, y la alternativa —enseñarlas sin agrupar— sería un filtro de
+      // trámites que unas zonas tienen y otras no según cuándo se consultaron
+      // por última vez.
+      return guardada && guardada.tramites.every((tramite) => tramite.grupo) ? guardada : null
     } catch {
       return null
     }

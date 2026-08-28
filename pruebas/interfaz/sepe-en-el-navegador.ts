@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import type { Localizacion } from '@/localizacion/geocodificador'
-import type { EstadoDeLaCola } from '@/sepe/cola'
+import type { EstadoDeLaCola, GrupoDeTramites, TramiteEnCola } from '@/sepe/cola'
 import type { EstadoDeLaConsulta } from '@/sepe/consultas'
 import type { Subtramite } from '@/sepe/niveles'
 import type { Oficina } from '@/sepe/oficinas'
@@ -23,6 +23,24 @@ import type { EventoDeLaPasada } from '@/sepe/pasada'
 /** El instante de la segunda captura, el mismo con el que arrancan los tests del servidor. */
 export const CONSULTADO_EN = Date.parse('2026-08-14T13:37:10+02:00')
 
+/**
+ * Un primer hueco a tantos días de la búsqueda, a esa hora de pared.
+ *
+ * Se calcula desde `CONSULTADO_EN` y no se escribe a mano porque los filtros de
+ * fecha cuentan los días desde ahí: una fecha fija haría que «esta semana»
+ * pasara o fallara según la zona horaria de quien corra los tests.
+ */
+export function hueco(dias: number, hora = 9): string {
+  const fecha = new Date(CONSULTADO_EN)
+  fecha.setDate(fecha.getDate() + dias)
+  fecha.setHours(hora, 0, 0, 0)
+  const dosDigitos = (numero: number) => String(numero).padStart(2, '0')
+  return [
+    `${fecha.getFullYear()}-${dosDigitos(fecha.getMonth() + 1)}-${dosDigitos(fecha.getDate())}`,
+    `${dosDigitos(hora)}:00:00`,
+  ].join('T')
+}
+
 const GRANOLLERS: Localizacion = {
   lat: 41.6083,
   lng: 2.2875,
@@ -43,7 +61,25 @@ export const CENTRO_DE_LA_PROVINCIA: Localizacion = {
   precision: 'aproximada-provincial',
 }
 
-const UN_TRAMITE: Subtramite = { id: 631, nombre: 'Voy a salir al extranjero' }
+/**
+ * Un grupo del SEPE de verdad, sacado de las capturas: es el trámite de nivel 2
+ * del que cuelgan los consultables de 08401.
+ */
+const UN_GRUPO: GrupoDeTramites = {
+  id: 155,
+  nombre: 'Estoy cobrando prestación/subsidio y ha cambiado mi situación',
+}
+
+/**
+ * Un trámite tal como sale de la cola: el consultable y el grupo del que
+ * cuelga. El grupo tiene valor por defecto para que los tests que no van de
+ * agrupación no tengan que decirlo, y los que sí van lo digan a mano.
+ */
+export function tramite(parcial: { id: number; nombre: string; grupo?: GrupoDeTramites }): TramiteEnCola {
+  return { grupo: UN_GRUPO, ...parcial }
+}
+
+const UN_TRAMITE: TramiteEnCola = tramite({ id: 631, nombre: 'Voy a salir al extranjero' })
 
 export function oficina(parcial: Partial<Oficina> = {}): Oficina {
   return {
@@ -63,19 +99,29 @@ export function oficina(parcial: Partial<Oficina> = {}): Oficina {
   }
 }
 
-/** Qué trámites hay en la zona y desde dónde se miden los kilómetros. */
+/**
+ * Qué trámites hay en la zona, desde dónde se miden los kilómetros y de cuándo
+ * es la cola.
+ *
+ * El `consultadoEn` se puede mover porque el de la cola **no** es el de las
+ * horas: la cola se guarda un día entero, así que un test tiene que poder
+ * ponerla rancia y comprobar que los filtros de fecha no le hacen caso. Y la
+ * localización se puede cambiar para el caso degradado del geocodificador, que
+ * es el que hace que los kilómetros sean a ojo.
+ */
 export function cola(
-  tramites: Subtramite[],
+  tramites: TramiteEnCola[],
   estado: EstadoDeLaCola = 'ok',
+  consultadoEn: number = CONSULTADO_EN,
   localizacion: Localizacion = GRANOLLERS,
 ): EventoDeLaPasada {
-  return { tipo: 'cola', estado, consultadoEn: CONSULTADO_EN, localizacion, tramites }
+  return { tipo: 'cola', estado, consultadoEn, localizacion, tramites }
 }
 
 /** Un trámite resuelto, con lo que haya salido de él. */
 export function resuelto(
   parcial: Partial<{
-    tramite: Subtramite
+    tramite: TramiteEnCola
     estado: EstadoDeLaConsulta
     desdeCache: boolean
     caducada: boolean
@@ -120,7 +166,11 @@ export function pasadaDeUnTramite(
   parcial: Parameters<typeof resuelto>[0] & { localizacion?: Localizacion } = {},
 ): EventoDeLaPasada[] {
   const tramite = parcial.tramite ?? UN_TRAMITE
-  return [cola([tramite], 'ok', parcial.localizacion), consultando(tramite), resuelto(parcial)]
+  return [
+    cola([tramite], 'ok', CONSULTADO_EN, parcial.localizacion),
+    consultando(tramite),
+    resuelto(parcial),
+  ]
 }
 
 /** Una pasada que no llega a tener trámites que consultar. */
@@ -298,7 +348,7 @@ export function apiQueContestaPorTurnos(tandas: EventoDeLaPasada[][]): ApiFalsa 
 }
 
 /** Lo que el servidor manda al cerrar sin haber terminado. */
-export function pendientes(tramites: Subtramite[]): EventoDeLaPasada {
+export function pendientes(tramites: TramiteEnCola[]): EventoDeLaPasada {
   return { tipo: 'pendientes', tramites }
 }
 

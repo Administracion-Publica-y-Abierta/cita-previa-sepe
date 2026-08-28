@@ -1,7 +1,15 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import Portada from '@/app/page'
-import { BOTON, buscar, campoDelCodigoPostal, CODIGO_POSTAL, listaDeOficinas, montarPortada } from './la-portada'
+import {
+  BOTON,
+  buscar,
+  campoDelCodigoPostal,
+  CODIGO_POSTAL,
+  elResumen,
+  listaDeOficinas,
+  montarPortada,
+} from './la-portada'
 import {
   apiQueContesta,
   apiQueContestaCuandoSeLeDiga,
@@ -65,9 +73,13 @@ describe('la primera pantalla', () => {
     await buscar(persona, '08402')
     await listaDeOficinas()
 
-    // Sigue habiendo un solo campo, y no se llama DNI. Nadie entrega un dato
-    // antes de saber si le merece la pena, y aquí tampoco después.
-    expect(document.querySelectorAll('input, select, textarea')).toHaveLength(1)
+    // Con la lista delante hay más controles —los dos filtros—, pero seguir
+    // usando la web no cuesta ni un dato: el único sitio donde se escribe algo
+    // sigue siendo el código postal, y ninguno pide documento. Las casillas,
+    // los radios y el deslizador no cuentan: eligen qué de lo que ya hay se
+    // mira, y elegir no es entregar nada.
+    const donde = screen.getAllByRole('textbox').concat(screen.queryAllByRole('spinbutton'))
+    expect(donde).toEqual([campoDelCodigoPostal()])
     expect(screen.queryByLabelText(/dni|nif|documento/i)).toBe(null)
   })
 })
@@ -232,8 +244,8 @@ describe('la lista de oficinas del primer trámite', () => {
     // Un `status` es una región viva: se anuncia sola al cambiar, sin robar el
     // foco. La lista entera no puede estar dentro —cuarenta y seis oficinas
     // leídas de corrido no las aguanta nadie—, así que se anuncia el resumen.
-    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/2 oficinas/))
-    expect(screen.getByRole('status').textContent).toMatch(/1 con hueco/)
+    await waitFor(() => expect(elResumen().textContent).toMatch(/2 oficinas/))
+    expect(elResumen().textContent).toMatch(/1 con hueco/)
   })
 
   it('se recorre entera con el teclado, oficina por oficina y en orden', async () => {
@@ -272,7 +284,7 @@ describe('la lista de oficinas del primer trámite', () => {
     await buscar(persona, '08402')
 
     await waitFor(() =>
-      expect(screen.getByRole('status').textContent).toMatch(/ninguna con hueco|0 con hueco/i),
+      expect(elResumen().textContent).toMatch(/ninguna con hueco|0 con hueco/i),
     )
   })
 })

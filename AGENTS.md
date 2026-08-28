@@ -92,6 +92,10 @@ rato—. Por eso lo que la pantalla dice no es un texto sino tres
   códigos de error: un número no le dice a nadie qué hacer ahora.
 - **La frescura** dice a qué hora se consultó, y con ella va el botón de volver
   a comprobar. Van juntos porque son la misma pregunta: ¿esto sigue valiendo?
+  Vuelve a pedir **la zona que se está mirando y lo que esté marcado**, que es
+  exactamente lo que hay delante: ni lo que haya quedado en el campo sin
+  buscar, ni los trámites que ahora mismo no se miran —esos costarían una
+  pasada entera que nadie ha pedido—.
 
 Dos reglas que se saltan solas si no se vigilan. La hora es **el instante real
 de la consulta al SEPE** —viaja en el evento, no se mira el reloj al pintar—, y
@@ -99,6 +103,87 @@ con varios trámites se enseña **la del más viejo**: la lista funde las oficin
 de todos, así que la frescura que se puede prometer es la del peor. Y `sin-tramites`
 es el único estado que no trae oficinas y aun así **no** es un percance: el SEPE
 contestó, y volver a intentarlo no lo va a cambiar.
+
+## Marcar trámites no relanza la búsqueda
+
+Mucha gente no sabe cómo se llama su trámite, así que aquí no se le hace
+elegir uno: se marcan **varios a la vez** y salen agrupados como los agrupa el
+SEPE. Lo que hay que saber antes de tocarlo:
+
+- **El grupo viaja pegado a cada trámite de la cola** (`src/sepe/cola.ts`) y no
+  aparte, porque la cola es una fila y no un árbol: quien la recorre no
+  necesita la agrupación y quien la enseña la rehace. El grupo es el trámite de
+  **nivel 2** —el combo «Trámite» de la sede, del que cuelga el de
+  «Subtrámite»—. El nivel 1 no entra: el SEPE lo llama «Tipo de oficina» y no
+  agrupa trámites.
+- **Sin marcar nada se enseñan todos.** Marcar estrecha, y no es un paso previo
+  a ver nada: por eso el hero sigue siendo un campo y un botón.
+- **El filtro mira y no tira.** `soloLoElegido`
+  (`src/interfaz/tramites-elegidos.ts`) filtra la vista, no el estado: lo
+  desmarcado sigue entero, y eso es lo que hace que volver a marcarlo no cueste
+  otra consulta al SEPE.
+- **Marcar algo que no se ha consultado lo mete en la cola.** Por eso la
+  búsqueda vive en el hero como un bucle y no como una llamada: mientras quede
+  algo marcado por saber se vuelve a salir al SEPE y lo que llega se suma a lo
+  que ya hay. Con una pasada abierta se apunta y se espera —dos pasadas a la
+  vez son dos colas peleándose por las fichas del freno—.
+- **Lo marcado va en el fragmento** (`#cp=08401&t=23,17`), por lo mismo que el
+  código postal: el alojamiento registra la URL entera y el fragmento no viaja.
+  Y un enlace que trae trámites elegidos consulta **solo esos**: quien lo
+  comparte ya ha elegido, y la zona entera son unos 44 segundos que nadie ha
+  pedido.
+
+Este filtro y el de la lista —distancia, franja y fecha— son de esta misma
+fase y no se parecen en nada: **este puede costar una consulta al SEPE**,
+porque puede marcarse algo que todavía no se sabe; el otro no cuesta ninguna
+nunca. Por eso viven en sitios distintos y se prueban de formas distintas.
+
+## Los filtros no le preguntan nada al SEPE
+
+Sobre la lista que ya ha llegado se filtra por distancia, por franja y por
+fecha, y se ordena. Todo ello son **funciones puras** en `src/interfaz/
+filtros.ts`, y por eso responden al instante y no cuestan ni una petición: lo
+caro —salir al SEPE— ya se pagó. `filtros-de-la-lista.tsx` es solo los controles.
+
+- **La franja es la del primer hueco de cada oficina, no su agenda.** El
+  desglose de días y horas del SEPE (`calendarioServicio`) exige el parámetro
+  `documento`, y esta fase no pide DNI. La pantalla lo dice donde está el
+  control, y no como letra pequeña: dejar creer que se ven todos los huecos de
+  una oficina es la misma clase de mentira que contar un SEPE caído como «no
+  hay citas».
+- **El tope del control de distancia no es un radio de cien kilómetros: es no
+  filtrar.** Si fuera un radio, una zona rural cuya oficina más cercana está a
+  ciento veinte se quedaría sin lista y sin saber por qué.
+- **«Esta semana» son siete días y lo dice la propia opción.** Una semana
+  natural que acabe mañana convierte el filtro en algo que casi nunca deja
+  nada, y quien lo lee no tendría cómo saber por qué.
+- **Cuando no queda nada se dice qué filtro lo tapa, y solo si quitarlo basta.**
+  `quienLasTapa` devuelve los que, **quitados ellos solos**, devuelven algún
+  resultado. Cuando harían falta dos no se señala a ninguno: ofrecer quitar uno
+  sería mandar a alguien a pulsar un botón que lo deja donde estaba.
+- **El «hoy» es el del trámite, y no el de la cola.** La referencia es el
+  `consultadoEn` del evento `tramite`, que es el instante con el que el SEPE
+  contestó **esas horas**. El de la cola vale para lo suyo y no para esto: la
+  cola se guarda un día entero (`VIDA_DE_LA_COLA_MS`), así que usarlo haría que
+  «hoy» fuera ayer y dejara fuera todos los huecos de hoy sin decir por qué.
+  Con el del trámite, además, una pestaña abierta desde ayer no cambia de
+  opinión sola y los tests no dependen de la hora a la que se ejecuten.
+- **Los filtros van en el fragmento, con el código postal y por lo mismo.** Una
+  búsqueda ya filtrada se comparte tal cual sin que el alojamiento registre de
+  dónde es quien la abre. Solo se escribe lo que se ha tocado, y con
+  `replaceState`: mover el deslizador dejaría noventa y nueve paradas en el
+  historial.
+
+Dos consecuencias en los tests. La pantalla tiene ahora **dos regiones vivas**
+—el resumen de la búsqueda y el contador de lo que dejan los filtros—, así que
+cada una se pide por su nombre con `elResumen()` y `elContador()`, y no con
+`getByRole('status')` a secas.
+
+Y hay una segunda excepción al patrón de `userEvent`, escrita aquí por lo mismo
+que la del techo del freno: **el deslizador de distancia se mueve con
+`fireEvent.change`**. `userEvent` no sabe arrastrar un `range`, y llegar con las
+flechas serían noventa y cinco pulsaciones por test. Que se pueda mover con el
+teclado se prueba aparte, y ahí sí con la persona.
 
 ## El patrón de test: `montarApp()`
 

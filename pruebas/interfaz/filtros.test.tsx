@@ -1,0 +1,442 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { UserEvent } from '@testing-library/user-event'
+import { describe, expect, it } from 'vitest'
+import Portada from '@/app/page'
+import { buscar, elContador, listaDeOficinas, montarPortada } from './la-portada'
+import {
+  apiQueContesta,
+  cola,
+  consultando,
+  hueco,
+  oficina,
+  pasadaDeUnTramite,
+  resuelto,
+  tramite,
+  type ApiFalsa,
+} from './sepe-en-el-navegador'
+
+/**
+ * Los filtros, probados como los usa quien tiene la lista delante: se mueve un
+ * control y la lista cambia sola. Lo que aquí se mira es lo que no se puede
+ * mirar en `src/interfaz/filtros.test.ts` —que son puras y ya están probadas
+ * ahí—: que los controles existan, se llamen algo, se puedan usar con teclado,
+ * que la lista responda sin salir a la red y que todo quede en la dirección.
+ */
+
+const CERCA_Y_PRONTO = oficina({
+  id: 1,
+  nombre: 'GRANOLLERS-CENTRE - SEPE',
+  km: 2,
+  primerHueco: hueco(0, 9),
+})
+
+const LEJOS_Y_PRONTO = oficina({
+  id: 2,
+  nombre: 'MOLLET DEL VALLES - SEPE',
+  km: 24,
+  primerHueco: hueco(1, 10),
+})
+
+const CERCA_Y_POR_LA_TARDE = oficina({
+  id: 3,
+  nombre: 'GRANOLLERS-PERIFERIA - SEPE',
+  km: 4,
+  primerHueco: hueco(20, 17),
+})
+
+const TODAS = [CERCA_Y_PRONTO, LEJOS_Y_PRONTO, CERCA_Y_POR_LA_TARDE]
+
+/** Monta la portada, busca y espera a que la lista esté puesta. */
+async function conLaListaDelante(oficinas = TODAS): Promise<{ persona: UserEvent; api: ApiFalsa }> {
+  const persona = montarPortada()
+  const api = apiQueContesta(pasadaDeUnTramite({ oficinas }))
+  await buscar(persona, '08401')
+  await listaDeOficinas()
+  return { persona, api }
+}
+
+/** Los nombres de las oficinas que se ven ahora mismo, en el orden en que están. */
+async function loQueSeVe(): Promise<string[]> {
+  const lista = await listaDeOficinas()
+  return within(lista)
+    .queryAllByRole('heading', { level: 3 })
+    .map((titulo) => titulo.textContent ?? '')
+}
+
+function radio(nombre: RegExp): HTMLElement {
+  return screen.getByRole('radio', { name: nombre })
+}
+
+describe('cuándo aparecen los filtros', () => {
+  it('no están antes de buscar: no hay nada que filtrar', () => {
+    montarPortada()
+    expect(screen.queryByRole('region', { name: /filtros/i })).toBe(null)
+  })
+
+  it('aparecen con la lista', async () => {
+    await conLaListaDelante()
+    expect(screen.getByRole('region', { name: /filtros/i })).toBeTruthy()
+  })
+})
+
+describe('el filtro de distancia', () => {
+  it('deja fuera lo que queda lejos, y sin pedirle nada al servidor', async () => {
+    const { api } = await conLaListaDelante()
+    const peticiones = api.peticiones.length
+
+    // Cinco kilómetros deja fuera la de veinticuatro, y la lista cambia sin que
+    // el servidor se entere: los filtros son puros sobre lo que ya ha llegado.
+    ponerA(screen.getByLabelText(/distancia máxima/i), 5)
+
+    expect(await loQueSeVe()).toEqual([CERCA_Y_PRONTO.nombre, CERCA_Y_POR_LA_TARDE.nombre])
+    expect(api.peticiones).toHaveLength(peticiones)
+  })
+
+  it('baja hasta unos pocos kilómetros, que es lo que necesita quien va andando', async () => {
+    await conLaListaDelante()
+    const control = screen.getByLabelText(/distancia máxima/i) as HTMLInputElement
+    expect(Number(control.min)).toBeLessThanOrEqual(3)
+    expect(control.step).toBe('1')
+  })
+
+  it('dice a cuántos kilómetros está puesto, también para el lector de pantalla', async () => {
+    await conLaListaDelante()
+    const control = screen.getByLabelText(/distancia máxima/i)
+
+    expect(control.getAttribute('aria-valuetext')).toMatch(/sin límite/i)
+    ponerA(control, 5)
+    expect(control.getAttribute('aria-valuetext')).toMatch(/5 km/)
+  })
+})
+
+describe('el filtro de franja', () => {
+  it('deja las que tienen su primer hueco por la tarde', async () => {
+    const { persona } = await conLaListaDelante()
+
+    await persona.click(radio(/por la tarde/i))
+
+    expect(await loQueSeVe()).toEqual([CERCA_Y_POR_LA_TARDE.nombre])
+  })
+
+  it('deja las de por la mañana', async () => {
+    const { persona } = await conLaListaDelante()
+
+    await persona.click(radio(/por la mañana/i))
+
+    expect(await loQueSeVe()).toEqual([CERCA_Y_PRONTO.nombre, LEJOS_Y_PRONTO.nombre])
+  })
+
+  it('dice que es el primer hueco de cada oficina y no su agenda entera', async () => {
+    await conLaListaDelante()
+
+    const franja = screen.getByRole('group', { name: /^primer hueco de la oficina$/i })
+    // Lo que no puede hacer es dejar creer que enseña todos los huecos: el
+    // desglose por horas del SEPE pide DNI y esta fase no lo pide.
+    expect(within(franja).getByText(/no.*(agenda|todos los huecos)/i)).toBeTruthy()
+  })
+})
+
+describe('el filtro de fecha', () => {
+  it('«hoy» deja solo lo que es hoy', async () => {
+    const { persona } = await conLaListaDelante()
+
+    await persona.click(radio(/^hoy$/i))
+
+    expect(await loQueSeVe()).toEqual([CERCA_Y_PRONTO.nombre])
+  })
+
+  it('«esta semana» llega a lo de dentro de unos días', async () => {
+    const { persona } = await conLaListaDelante()
+
+    await persona.click(radio(/esta semana/i))
+
+    expect(await loQueSeVe()).toEqual([CERCA_Y_PRONTO.nombre, LEJOS_Y_PRONTO.nombre])
+  })
+
+  it('«este mes» llega a lo de dentro de tres semanas', async () => {
+    const { persona } = await conLaListaDelante()
+
+    await persona.click(radio(/este mes/i))
+
+    expect(await loQueSeVe()).toHaveLength(3)
+  })
+})
+
+describe('el orden', () => {
+  it('por distancia, de la más cercana a la más lejana', async () => {
+    await conLaListaDelante()
+
+    expect(await loQueSeVe()).toEqual([
+      CERCA_Y_PRONTO.nombre,
+      CERCA_Y_POR_LA_TARDE.nombre,
+      LEJOS_Y_PRONTO.nombre,
+    ])
+  })
+
+  it('por lo pronto que sea el hueco', async () => {
+    const { persona } = await conLaListaDelante()
+
+    await persona.selectOptions(screen.getByLabelText(/ordenar/i), 'antes')
+
+    expect(await loQueSeVe()).toEqual([
+      CERCA_Y_PRONTO.nombre,
+      LEJOS_Y_PRONTO.nombre,
+      CERCA_Y_POR_LA_TARDE.nombre,
+    ])
+  })
+})
+
+describe('el contador', () => {
+  it('está a la vista desde el principio, con todas dentro', async () => {
+    await conLaListaDelante()
+    expect(screen.getByText(/3 de 3 oficinas/i)).toBeTruthy()
+  })
+
+  it('dice cuántas quedan en cuanto se filtra', async () => {
+    const { persona } = await conLaListaDelante()
+
+    await persona.click(radio(/por la tarde/i))
+
+    expect(screen.getByText(/1 de 3 oficinas/i)).toBeTruthy()
+  })
+})
+
+describe('cuando no queda ninguna', () => {
+  it('dice qué filtro las está tapando y se quita de un clic', async () => {
+    const { persona } = await conLaListaDelante()
+
+    ponerA(screen.getByLabelText(/distancia máxima/i), 1)
+    expect(screen.getByText(/ninguna oficina/i)).toBeTruthy()
+    expect(screen.getByText(/el filtro de distancia es el que las está tapando/i)).toBeTruthy()
+
+    await persona.click(screen.getByRole('button', { name: /quitar el filtro de distancia/i }))
+
+    expect(await loQueSeVe()).toHaveLength(3)
+  })
+
+  it('cuando ninguno de los puestos las devuelve por sí solo, lo que se ofrece es quitarlos todos', async () => {
+    // Dos oficinas, las dos lejos y las dos para dentro de tres semanas: ni el
+    // radio de un kilómetro ni «hoy» dejan ninguna, ni juntos ni por separado.
+    // Ofrecer quitar uno sería ofrecer un botón que no devuelve nada.
+    const lejanas = [
+      oficina({ id: 1, nombre: 'GRANOLLERS-CENTRE - SEPE', km: 12, primerHueco: hueco(20, 17) }),
+      oficina({ id: 2, nombre: 'MOLLET DEL VALLES - SEPE', km: 24, primerHueco: hueco(20, 17) }),
+    ]
+    const { persona } = await conLaListaDelante(lejanas)
+
+    ponerA(screen.getByLabelText(/distancia máxima/i), 1)
+    await persona.click(radio(/^hoy$/i))
+
+    expect(screen.queryByRole('button', { name: /quitar el filtro de/i })).toBe(null)
+
+    await persona.click(screen.getByRole('button', { name: /^quitar (los )?filtros$/i }))
+
+    expect(await loQueSeVe()).toHaveLength(2)
+  })
+})
+
+describe('la lista y el mapa cuando no queda ninguna', () => {
+  it('siguen puestos: lo que pasa lo cuenta el panel, no la pantalla vaciándose', async () => {
+    await conLaListaDelante()
+
+    ponerA(screen.getByLabelText(/distancia máxima/i), 1)
+
+    // La lista sigue siendo la lista, vacía; y el mapa sigue donde estaba.
+    expect(await loQueSeVe()).toEqual([])
+    expect(screen.getByRole('region', { name: /mapa de las oficinas/i })).toBeTruthy()
+  })
+})
+
+describe('quitar filtros', () => {
+  it('devuelve la lista entera de una vez', async () => {
+    const { persona } = await conLaListaDelante()
+
+    ponerA(screen.getByLabelText(/distancia máxima/i), 5)
+    await persona.click(radio(/por la mañana/i))
+    await persona.click(radio(/^hoy$/i))
+    expect(await loQueSeVe()).toEqual([CERCA_Y_PRONTO.nombre])
+
+    await persona.click(screen.getByRole('button', { name: /^quitar (los )?filtros$/i }))
+
+    expect(await loQueSeVe()).toHaveLength(3)
+  })
+
+  it('no se ofrece cuando no hay ningún filtro puesto', async () => {
+    await conLaListaDelante()
+    expect(screen.queryByRole('button', { name: /^quitar (los )?filtros$/i })).toBe(null)
+  })
+})
+
+describe('los filtros en la dirección de la página', () => {
+  it('lo que se filtra queda escrito en la dirección, con el código postal', async () => {
+    const { persona } = await conLaListaDelante()
+
+    await persona.click(radio(/por la tarde/i))
+    await persona.selectOptions(screen.getByLabelText(/ordenar/i), 'antes')
+
+    const fragmento = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    expect(fragmento.get('cp')).toBe('08401')
+    expect(fragmento.get('franja')).toBe('tarde')
+    expect(fragmento.get('orden')).toBe('antes')
+  })
+
+  it('quitar los filtros los borra también de la dirección', async () => {
+    const { persona } = await conLaListaDelante()
+
+    await persona.click(radio(/por la tarde/i))
+    await persona.click(screen.getByRole('button', { name: /^quitar (los )?filtros$/i }))
+
+    expect(window.location.hash).not.toMatch(/franja/)
+  })
+
+  it('un enlace con filtros se abre ya filtrado', async () => {
+    window.history.replaceState(null, '', '#cp=08401&km=5&orden=antes')
+    apiQueContesta(pasadaDeUnTramite({ oficinas: TODAS }))
+
+    render(<Portada />)
+    await listaDeOficinas()
+
+    await waitFor(() => expect(screen.getByText(/2 de 3 oficinas/i)).toBeTruthy())
+    expect(await loQueSeVe()).toEqual([CERCA_Y_PRONTO.nombre, CERCA_Y_POR_LA_TARDE.nombre])
+    expect((screen.getByLabelText(/ordenar/i) as HTMLSelectElement).value).toBe('antes')
+  })
+})
+
+describe('los filtros con el teclado y con lector de pantalla', () => {
+  it('cada control tiene nombre y los de elegir uno van agrupados', async () => {
+    await conLaListaDelante()
+
+    expect(screen.getByRole('slider', { name: /distancia máxima/i })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: /ordenar/i })).toBeTruthy()
+    expect(screen.getByRole('group', { name: /^primer hueco de la oficina$/i })).toBeTruthy()
+    expect(screen.getByRole('group', { name: /cuándo es el primer hueco/i })).toBeTruthy()
+  })
+
+  it('se llega a todos tabulando y se cambian sin ratón', async () => {
+    const { persona } = await conLaListaDelante()
+
+    const control = screen.getByLabelText(/distancia máxima/i)
+    control.focus()
+    expect(document.activeElement).toBe(control)
+
+    await persona.tab()
+    // Lo siguiente al control de distancia es el radio de la franja que está
+    // elegido: no hay nada por el camino que solo se pueda tocar con el ratón.
+    expect(document.activeElement).toBe(radio(/cualquier hora/i))
+  })
+
+  it('el contador se anuncia solo cuando cambia', async () => {
+    await conLaListaDelante()
+    expect(elContador().textContent).toMatch(/3 de 3 oficinas/i)
+  })
+})
+
+/**
+ * Mover el control continuo hasta un valor.
+ *
+ * Es lo único que no se hace con `userEvent`: arrastrar un `range` no lo sabe
+ * hacer, y llegar con las flechas serían noventa y cinco pulsaciones. Que se
+ * pueda mover con el teclado se prueba aparte, y ahí sí con la persona.
+ */
+function ponerA(control: HTMLElement, valor: number): void {
+  fireEvent.change(control, { target: { value: String(valor) } })
+}
+
+describe('desde cuándo se cuentan «hoy», «esta semana» y «este mes»', () => {
+  it('desde el trámite y no desde la cola, que se guarda un día entero', async () => {
+    // Es el caso real: una zona cuya cola se descubrió ayer y cuyas horas son
+    // de hace un minuto. Si mandara la cola, «hoy» se leería como ayer y
+    // dejaría fuera todos los huecos de hoy sin decir por qué.
+    const AYER = 24 * 60 * 60 * 1000
+    const elTramite = tramite({ id: 631, nombre: 'Voy a salir al extranjero' })
+    const deHoy = oficina({ id: 1, km: 2, primerHueco: hueco(0, 9) })
+
+    const persona = montarPortada()
+    apiQueContesta([
+      cola([elTramite], 'ok', Date.parse('2026-08-13T13:37:10+02:00') - AYER),
+      consultando(elTramite),
+      resuelto({ tramite: elTramite, oficinas: [deHoy] }),
+    ])
+    await buscar(persona, '08401')
+    await listaDeOficinas()
+
+    await persona.click(radio(/^hoy$/i))
+
+    expect(await loQueSeVe()).toEqual([deHoy.nombre])
+  })
+})
+
+/**
+ * Los dos filtros de esta fase conviven: el de trámites, que puede costar una
+ * consulta al SEPE, y el de la lista, que no cuesta ninguna. Se prueban juntos
+ * porque escriben en la misma dirección y porque se aplican uno detrás de otro
+ * sobre las mismas oficinas: si alguno de los dos pisara al otro, sería aquí.
+ */
+describe('el filtro de trámites y el de la lista, a la vez', () => {
+  const COBRANDO = { id: 155, nombre: 'Estoy cobrando prestación/subsidio y ha cambiado mi situación' }
+  const EXTRANJERO = tramite({ id: 23, nombre: 'Voy a salir al extranjero', grupo: COBRANDO })
+  const JUBILAR = tramite({ id: 17, nombre: 'Me voy a jubilar', grupo: COBRANDO })
+
+  /** La del extranjero está cerca; la de jubilarse, lejos. */
+  const CERCA = oficina({ id: 1, nombre: 'LA DEL EXTRANJERO', km: 2, primerHueco: hueco(0, 9) })
+  const LEJOS = oficina({ id: 2, nombre: 'LA DE JUBILARSE', km: 30, primerHueco: hueco(0, 9) })
+
+  const DOS_TRAMITES = [
+    cola([EXTRANJERO, JUBILAR]),
+    resuelto({ tramite: EXTRANJERO, oficinas: [CERCA] }),
+    resuelto({ tramite: JUBILAR, oficinas: [LEJOS] }),
+  ]
+
+  it('un enlace con las dos cosas se abre con las dos puestas', async () => {
+    window.history.replaceState(null, '', '#cp=08401&t=23,17&km=5')
+    apiQueContesta(DOS_TRAMITES)
+
+    render(<Portada />)
+    await listaDeOficinas()
+
+    // Los dos trámites marcados, y de sus dos oficinas solo la que cae dentro
+    // de los cinco kilómetros.
+    await waitFor(() =>
+      expect((screen.getByRole('checkbox', { name: JUBILAR.nombre }) as HTMLInputElement).checked).toBe(true),
+    )
+    expect(await loQueSeVe()).toEqual([CERCA.nombre])
+  })
+
+  it('marcar un trámite no se lleva por delante los filtros de la lista', async () => {
+    const persona = montarPortada()
+    apiQueContesta(DOS_TRAMITES)
+    await buscar(persona, '08401')
+    await listaDeOficinas()
+
+    ponerA(screen.getByLabelText(/distancia máxima/i), 5)
+    await persona.click(screen.getByRole('checkbox', { name: EXTRANJERO.nombre }))
+
+    // Ni de la pantalla ni de la dirección: el enlace de la barra sigue siendo
+    // el de lo que se está viendo.
+    expect(await loQueSeVe()).toEqual([CERCA.nombre])
+    const fragmento = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    expect(fragmento.get('t')).toBe('23')
+    expect(fragmento.get('km')).toBe('5')
+  })
+
+  it('buscar otra zona desmarca los trámites, que son de aquella, y conserva los filtros, que no', async () => {
+    const persona = montarPortada()
+    apiQueContesta(DOS_TRAMITES)
+    await buscar(persona, '08401')
+    await listaDeOficinas()
+
+    ponerA(screen.getByLabelText(/distancia máxima/i), 5)
+    await persona.click(screen.getByRole('checkbox', { name: EXTRANJERO.nombre }))
+
+    await persona.clear(screen.getByLabelText('Código postal'))
+    await buscar(persona, '08402')
+    await listaDeOficinas()
+
+    const fragmento = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    expect(fragmento.get('cp')).toBe('08402')
+    // Los identificadores de trámite son de la zona de antes y aquí no
+    // existen; «a menos de cinco kilómetros» quiere decir lo mismo en las dos.
+    expect(fragmento.get('t')).toBe(null)
+    expect(fragmento.get('km')).toBe('5')
+  })
+})

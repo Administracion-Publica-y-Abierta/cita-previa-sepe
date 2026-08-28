@@ -1,7 +1,14 @@
 import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { enHoraDeConsulta } from '@/interfaz/formato'
-import { BOTON, buscar, campoDelCodigoPostal, listaDeOficinas, montarPortada } from './la-portada'
+import {
+  BOTON,
+  buscar,
+  campoDelCodigoPostal,
+  elResumen,
+  listaDeOficinas,
+  montarPortada,
+} from './la-portada'
 import {
   apiQueContesta,
   apiQueVaContando,
@@ -13,6 +20,7 @@ import {
   pasadaDeUnTramite,
   pasadaSinCola,
   resuelto,
+  tramite,
 } from './sepe-en-el-navegador'
 
 /**
@@ -32,8 +40,8 @@ import {
  * para volver a comprobarlo.
  */
 
-const PRESTACION = { id: 501, nombre: 'Prestación contributiva' }
-const SUBSIDIO = { id: 502, nombre: 'Subsidio por desempleo' }
+const PRESTACION = tramite({ id: 501, nombre: 'Prestación contributiva' })
+const SUBSIDIO = tramite({ id: 502, nombre: 'Subsidio por desempleo' })
 
 /** Media hora antes que el resto, para que las dos horas no se puedan confundir. */
 const MEDIA_HORA_ANTES = CONSULTADO_EN - 1_800_000
@@ -62,7 +70,7 @@ describe('«no hay huecos» y «el SEPE no está contestando»', () => {
 
     // Aquí sí se ha podido preguntar, y la respuesta es que ahora mismo no hay
     // hueco. Es información: quien la lee sabe que puede probar en otra zona.
-    expect(screen.getByRole('status').textContent).toMatch(/ninguna con hueco/i)
+    expect(elResumen().textContent).toMatch(/ninguna con hueco/i)
     expect(screen.queryByRole('alert')).toBe(null)
   })
 
@@ -76,7 +84,7 @@ describe('«no hay huecos» y «el SEPE no está contestando»', () => {
     // preguntar. Un lector de pantalla lo anuncia como alerta, y el titular no
     // dice ni una cifra que se pueda leer como un resultado.
     await waitFor(() => expect(loQueImpide().textContent).toMatch(/no responde/i))
-    expect(screen.getByRole('status').textContent).not.toMatch(/oficina|hueco/i)
+    expect(elResumen().textContent).not.toMatch(/oficina|hueco/i)
   })
 
   it('las dos cosas no se pueden confundir: solo una de ellas es una alerta', async () => {
@@ -84,7 +92,7 @@ describe('«no hay huecos» y «el SEPE no está contestando»', () => {
     apiQueContesta(pasadaDeUnTramite({ oficinas: [oficina({ primerHueco: null })] }))
     await buscar(persona, '08402')
     await listaDeOficinas()
-    const sinHuecos = screen.getByRole('status').textContent
+    const sinHuecos = elResumen().textContent
 
     apiQueContesta(pasadaDeUnTramite({ estado: 'sepe-no-responde', oficinas: [] }))
     await persona.click(botonDeVolverAComprobar())
@@ -106,7 +114,7 @@ describe('«no hay huecos» y «el SEPE no está contestando»', () => {
     // «El SEPE no atiende estos trámites en ninguna oficina» hablaría también
     // del que no contestó, del que no se sabe nada. Eso lo cuenta la alerta.
     await waitFor(() => expect(loQueImpide().textContent).toMatch(/no responde/i))
-    expect(screen.getByRole('status').textContent).not.toMatch(/ninguna oficina/i)
+    expect(elResumen().textContent).not.toMatch(/ninguna oficina/i)
   })
 })
 
@@ -182,6 +190,22 @@ describe('volver a comprobar', () => {
 
     await waitFor(() => expect(api.peticiones).toHaveLength(2))
     expect(api.peticiones[1].cuerpo).toEqual({ cp: '08402' })
+  })
+
+  it('con trámites marcados vuelve a preguntar solo por esos, y no por la zona entera', async () => {
+    // Se entra por un enlace que ya trae elegido un trámite, que es la forma de
+    // llegar aquí con algo marcado sin tocar las casillas.
+    window.history.replaceState(null, '', `/#cp=08402&t=${PRESTACION.id}`)
+    const api = apiQueContesta([cola([PRESTACION, SUBSIDIO]), resuelto({ tramite: PRESTACION })])
+    const persona = montarPortada()
+
+    await listaDeOficinas()
+    await persona.click(botonDeVolverAComprobar())
+
+    // Lo que se está mirando es un trámite, no la zona: volver a comprobar no
+    // puede costarle al SEPE los que nadie tiene delante.
+    await waitFor(() => expect(api.peticiones).toHaveLength(2))
+    expect(api.peticiones[1].cuerpo).toEqual({ cp: '08402', tramites: [PRESTACION.id] })
   })
 
   it('no se puede pedir otra vez mientras se está comprobando', async () => {
@@ -309,6 +333,6 @@ describe('lo que se enseña no lleva nada de quien pregunta', () => {
 
     await waitFor(() => expect(loQueImpide().textContent).toMatch(/no responde/i))
     expect(loQueImpide().textContent).not.toContain('08402')
-    expect(screen.getByRole('status').textContent).not.toContain('08402')
+    expect(elResumen().textContent).not.toContain('08402')
   })
 })
