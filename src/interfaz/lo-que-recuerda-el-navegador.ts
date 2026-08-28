@@ -174,6 +174,25 @@ export interface LoUltimoConsultado {
 let yaSeLeyo = false
 let loLeido: LoUltimoConsultado | null = null
 
+/**
+ * Lo guardado, si sirve para la zona que se está mirando.
+ *
+ * La regla vive aquí y no en la pantalla porque se aplica en dos sitios —al
+ * abrir sin red, y cuando una búsqueda se queda sin llegar— y dos copias de una
+ * regla acaban siendo dos reglas distintas.
+ *
+ * Sin zona vale lo que haya: es la de quien abre desde el icono, que no trae
+ * ninguna, y lo último que miró es suyo. Con zona, solo si es la suya: enseñar
+ * la lista de otro sitio sería contestar por un sitio que nadie ha preguntado.
+ */
+export function loGuardadoDeLaZona(
+  guardado: LoUltimoConsultado | null,
+  zona: string,
+): LoUltimoConsultado | null {
+  if (guardado === null) return null
+  return zona === '' || guardado.codigoPostal === zona ? guardado : null
+}
+
 export function recordarElResultado(ultimo: LoUltimoConsultado): void {
   // También aquí, y con el objeto que se acaba de guardar: si no, la siguiente
   // lectura devolvería lo de antes o algo recién construido.

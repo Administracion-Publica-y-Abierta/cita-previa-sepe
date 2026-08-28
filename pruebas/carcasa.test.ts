@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { ficherosDe } from './ayudantes/ficheros'
 import { montarLaCarcasa, NO_SE_METE } from './ayudantes/la-carcasa'
 
 /**
@@ -21,8 +22,11 @@ const CARCASA = readFileSync(join(RAIZ, 'public', 'sw.js'), 'utf8')
 /** Un fichero de la aplicación de los que llevan su versión en el nombre. */
 const UN_TROZO = '/_next/static/chunks/8401.js'
 
+/** La portada tal como la manda Next: con sus ficheros nombrados dentro. */
+const PORTADA = `<html>la portada<script src="${UN_TROZO}"></script></html>`
+
 function laAplicacion(): Record<string, string> {
-  return { '/': 'la portada', [UN_TROZO]: 'la aplicación', '/manifest.webmanifest': '{}' }
+  return { '/': PORTADA, [UN_TROZO]: 'la aplicación', '/manifest.webmanifest': '{}' }
 }
 
 describe('abrir la aplicación sin cobertura', () => {
@@ -33,15 +37,20 @@ describe('abrir la aplicación sin cobertura', () => {
     carcasa.sinRed()
     const respuesta = await carcasa.pedir('/')
 
-    expect(await respuesta?.text()).toBe('la portada')
+    expect(await respuesta?.text()).toBe(PORTADA)
   })
 
   it('enseña también los ficheros de la aplicación, que es lo que la deja usable', async () => {
     // Sin ellos la portada abre y se queda en un esqueleto: no hay con qué
     // pintar la lista guardada ni con qué volver a comprobar cuando haya red.
+    //
+    // Y se guardan **en la instalación**, leyéndolos de la propia portada, sin
+    // que nadie los haya pedido a través de la carcasa: en la primera visita la
+    // página los pidió antes de que este service worker existiera. Quien
+    // instala y se mete en el metro antes de volver a abrirla se quedaría si no
+    // con la carcasa vacía.
     const carcasa = montarLaCarcasa(laAplicacion())
     await carcasa.instalar()
-    await carcasa.pedir(UN_TROZO, { modo: 'no-cors' })
 
     carcasa.sinRed()
     const respuesta = await carcasa.pedir(UN_TROZO, { modo: 'no-cors' })
@@ -186,12 +195,3 @@ describe('lo que este service worker no hace todavía', () => {
     expect(sueltos).toEqual(['sw.js'])
   })
 })
-
-/** Los ficheros de código que cuelgan de un directorio, en cualquier nivel. */
-function ficherosDe(raiz: string): string[] {
-  return readdirSync(raiz, { withFileTypes: true }).flatMap((entrada) => {
-    const camino = join(raiz, entrada.name)
-    if (entrada.isDirectory()) return ficherosDe(camino)
-    return /\.tsx?$/.test(entrada.name) ? [camino] : []
-  })
-}

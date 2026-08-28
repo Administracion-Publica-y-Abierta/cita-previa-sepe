@@ -35,16 +35,25 @@ describe('el registro de la carcasa', () => {
     expect(() => render(<ElServiceWorker />)).not.toThrow()
   })
 
-  it('ni cuando el navegador lo rechaza', async () => {
+  it('ni cuando el navegador lo rechaza, y sin dejar el rechazo suelto', async () => {
+    const sueltos: unknown[] = []
+    const apuntar = (evento: PromiseRejectionEvent) => sueltos.push(evento.reason)
+    window.addEventListener('unhandledrejection', apuntar)
+
     Object.defineProperty(window.navigator, 'serviceWorker', {
       configurable: true,
       value: { register: () => Promise.reject(new Error('modo privado')) },
     })
 
     render(<ElServiceWorker />)
+    // Dos vueltas: el rechazo se resuelve en la primera y el aviso de que nadie
+    // lo recogió sale en la siguiente.
+    await new Promise((seguir) => setTimeout(seguir, 0))
+    await new Promise((seguir) => setTimeout(seguir, 0))
+    window.removeEventListener('unhandledrejection', apuntar)
 
-    // Sin `catch` esto sería una promesa rechazada sin recoger, que en un
-    // navegador acaba en la consola de quien mira.
-    await expect(Promise.resolve()).resolves.toBeUndefined()
+    // Sin `catch`, esto sería una promesa rechazada sin recoger: en el navegador
+    // de quien mira acaba en su consola, y aquí lo caza además el propio vitest.
+    expect(sueltos).toEqual([])
   })
 })

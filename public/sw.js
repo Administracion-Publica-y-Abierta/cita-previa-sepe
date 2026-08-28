@@ -34,9 +34,16 @@ const PORTADA = '/'
 /**
  * Lo que se guarda según se pide, y ya no se vuelve a pedir.
  *
- * Todo esto lleva la versión en el nombre o no cambia nunca: un fichero de
- * `_next/static` con otro contenido tiene otro nombre, así que servirlo de la
- * caché no puede dejar a nadie con una versión vieja.
+ * Los de `_next/static` y el favicon llevan la versión en el nombre: con otro
+ * contenido tienen otra dirección, así que servirlos de lo guardado no puede
+ * dejar a nadie con una versión vieja.
+ *
+ * Los iconos y el worker del mapa **no** la llevan, y aquí se sirven igual: si
+ * cambia el dibujo de un icono o la versión de MapLibre, quien ya tenga la
+ * carcasa seguirá con los de antes hasta que se suba el número de `CARCASA`.
+ * Es a propósito y es el precio de que la aplicación abra sin red; lo que no
+ * puede es olvidarse, así que **cambiar cualquiera de estos dos es subir la
+ * versión de la carcasa en el mismo cambio**.
  */
 const DE_LA_APLICACION = ['/_next/static/', '/iconos/', '/mapa/', '/favicon.ico']
 
@@ -48,13 +55,46 @@ const DE_LA_APLICACION = ['/_next/static/', '/iconos/', '/mapa/', '/favicon.ico'
 const MANIFIESTO = '/manifest.webmanifest'
 
 self.addEventListener('install', (evento) => {
-  evento.waitUntil(
-    caches
-      .open(CARCASA)
-      .then((cajon) => cajon.add(PORTADA))
-      .then(() => self.skipWaiting()),
-  )
+  evento.waitUntil(guardarLaCarcasa().then(() => self.skipWaiting()))
 })
+
+/**
+ * La portada y, de paso, los ficheros que la portada pide.
+ *
+ * Lo segundo es una cuestión de orden y sin ello queda un agujero de una visita
+ * de ancho: en la primera, la página pidió su JavaScript **antes** de que este
+ * service worker existiera, así que esas respuestas no pasaron por aquí. Quien
+ * instala la aplicación y se queda sin cobertura antes de volver a abrirla
+ * recibiría entonces la carcasa sin la aplicación dentro —una página que no
+ * pinta lo que se guardó—, que es justo lo que esto viene a evitar.
+ *
+ * Lo que se pide más tarde y no está en el HTML —el mapa— se guarda al usarse.
+ */
+async function guardarLaCarcasa() {
+  const cajon = await caches.open(CARCASA)
+
+  const portada = await fetch(PORTADA)
+  if (!portada.ok) return
+
+  const html = await portada.clone().text()
+  await cajon.put(PORTADA, portada)
+
+  // Uno a uno y perdonando el que falle: un fichero que no esté no puede
+  // llevarse por delante la instalación entera y dejar la carcasa sin portada.
+  await Promise.all(loQuePideLaPortada(html).map((fichero) => cajon.add(fichero).catch(() => {})))
+}
+
+/**
+ * Los ficheros de la aplicación que la portada nombra.
+ *
+ * Es leer HTML con una expresión regular, que en general es mala idea; aquí es
+ * **nuestro** HTML y el patrón es estrecho —las direcciones que Next escribe
+ * para su JavaScript y sus estilos—, y equivocarse solo cuesta un fichero de
+ * más o de menos en la caché.
+ */
+function loQuePideLaPortada(html) {
+  return [...new Set(html.match(/\/_next\/static\/[^"']+/g) ?? [])]
+}
 
 self.addEventListener('activate', (evento) => {
   evento.waitUntil(

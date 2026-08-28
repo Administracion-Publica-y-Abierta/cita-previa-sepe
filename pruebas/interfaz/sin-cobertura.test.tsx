@@ -1,7 +1,8 @@
 import { cleanup, screen, waitFor } from '@testing-library/react'
+import type { UserEvent } from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import { enHoraDeConsulta } from '@/interfaz/formato'
 import { olvidarLaCobertura } from '@/interfaz/cobertura'
+import { enFechaYHoraDeConsulta } from '@/interfaz/formato'
 import { olvidarLoLeido } from '@/interfaz/lo-que-recuerda-el-navegador'
 import { conCobertura, sinCobertura } from './cobertura'
 import {
@@ -14,6 +15,7 @@ import {
 import {
   apiQueContesta,
   apiSinConexion,
+  type ApiFalsa,
   CONSULTADO_EN,
   oficina,
   pasadaDeUnTramite,
@@ -34,6 +36,17 @@ import {
  * ha podido comprobar no puede leerse como uno recién traído.
  */
 
+const LA_ZONA = '08402'
+
+/** Una búsqueda hecha y a la vista, que es lo que deja algo guardado. */
+async function unaBusquedaGuardada(): Promise<UserEvent> {
+  const persona = montarPortada()
+  apiQueContesta(pasadaDeUnTramite())
+  await buscar(persona, LA_ZONA)
+  await listaDeOficinas()
+  return persona
+}
+
 /**
  * Cómo se vuelve a abrir la aplicación desde el icono: sin fragmento y de cero.
  *
@@ -49,69 +62,60 @@ function volverAAbrirla(): void {
   olvidarLoLeido()
 }
 
+/** Y volver a abrirla ya en el túnel, con una red a la que no se llega. */
+function abrirlaSinCobertura(): { persona: UserEvent; api: ApiFalsa } {
+  volverAAbrirla()
+  sinCobertura()
+  const api = apiSinConexion()
+  return { persona: montarPortada(), api }
+}
+
 describe('la aplicación abierta sin cobertura', () => {
   it('enseña el último resultado consultado, con el día y la hora en que se consultó', async () => {
-    const persona = montarPortada()
-    apiQueContesta(pasadaDeUnTramite())
-    await buscar(persona, '08402')
-    await listaDeOficinas()
+    await unaBusquedaGuardada()
 
-    volverAAbrirla()
-    sinCobertura()
-    const api = apiSinConexion()
-    montarPortada()
+    abrirlaSinCobertura()
 
     // La lista está, que es lo que evita la página de error del navegador.
     await listaDeOficinas()
     // Y con la fecha entera, no solo la hora: lo guardado puede ser de ayer, y
     // «consultado a las 13:37» de un dato de ayer es una hora que engaña.
     expect(screen.getByText(/consultado el/i).textContent).toContain(
-      enHoraDeConsulta(CONSULTADO_EN),
+      enFechaYHoraDeConsulta(CONSULTADO_EN),
     )
-    // Sin red no se sale a preguntar: no hay a dónde.
+  })
+
+  it('sin salir a preguntar: no hay a dónde', async () => {
+    await unaBusquedaGuardada()
+
+    const { api } = abrirlaSinCobertura()
+    await listaDeOficinas()
+
     expect(api.peticiones).toEqual([])
   })
 
   it('dice que no hay conexión, para que lo viejo no se lea como recién traído', async () => {
-    const persona = montarPortada()
-    apiQueContesta(pasadaDeUnTramite())
-    await buscar(persona, '08402')
-    await listaDeOficinas()
+    await unaBusquedaGuardada()
 
-    volverAAbrirla()
-    sinCobertura()
-    apiSinConexion()
-    montarPortada()
+    abrirlaSinCobertura()
 
     await listaDeOficinas()
     expect(loQueImpide().textContent).toMatch(/sin conexión/i)
   })
 
   it('deja el código postal de lo que se está mirando, para poder volver a comprobarlo', async () => {
-    const persona = montarPortada()
-    apiQueContesta(pasadaDeUnTramite())
-    await buscar(persona, '08402')
-    await listaDeOficinas()
+    await unaBusquedaGuardada()
 
-    volverAAbrirla()
-    sinCobertura()
-    apiSinConexion()
-    montarPortada()
+    abrirlaSinCobertura()
 
     await listaDeOficinas()
-    expect(campoDelCodigoPostal().value).toBe('08402')
+    expect(campoDelCodigoPostal().value).toBe(LA_ZONA)
   })
 
   it('vuelve a preguntar en cuanto se le pide, y entonces lo guardado se sustituye', async () => {
-    const persona = montarPortada()
-    apiQueContesta(pasadaDeUnTramite())
-    await buscar(persona, '08402')
-    await listaDeOficinas()
+    await unaBusquedaGuardada()
 
-    volverAAbrirla()
-    sinCobertura()
-    apiSinConexion()
-    const segunda = montarPortada()
+    const { persona: segunda } = abrirlaSinCobertura()
     await listaDeOficinas()
 
     conCobertura()
@@ -125,15 +129,9 @@ describe('la aplicación abierta sin cobertura', () => {
 
 describe('la cobertura se mira al abrir, y no se cambia de idea sola', () => {
   it('lo guardado no desaparece de delante porque el móvil diga que ya hay red', async () => {
-    const persona = montarPortada()
-    apiQueContesta(pasadaDeUnTramite())
-    await buscar(persona, '08402')
-    await listaDeOficinas()
+    await unaBusquedaGuardada()
 
-    volverAAbrirla()
-    sinCobertura()
-    apiSinConexion()
-    const segunda = montarPortada()
+    const { persona: segunda } = abrirlaSinCobertura()
     await listaDeOficinas()
 
     // Se sale del túnel: el navegador dice que ya hay red. Si eso se mirara en
@@ -149,10 +147,7 @@ describe('la cobertura se mira al abrir, y no se cambia de idea sola', () => {
 
 describe('una búsqueda que se queda sin red', () => {
   it('enseña lo último de esa misma zona en vez de una pantalla en blanco', async () => {
-    const persona = montarPortada()
-    apiQueContesta(pasadaDeUnTramite())
-    await buscar(persona, '08402')
-    await listaDeOficinas()
+    const persona = await unaBusquedaGuardada()
 
     // La red se cae con la lista delante: se pide comprobar y no se llega.
     apiSinConexion()
@@ -165,10 +160,7 @@ describe('una búsqueda que se queda sin red', () => {
   })
 
   it('no enseña lo guardado de otra zona: sería contestar por un sitio que nadie ha preguntado', async () => {
-    const persona = montarPortada()
-    apiQueContesta(pasadaDeUnTramite())
-    await buscar(persona, '08402')
-    await listaDeOficinas()
+    const persona = await unaBusquedaGuardada()
 
     apiSinConexion()
     await persona.clear(campoDelCodigoPostal())
@@ -195,10 +187,7 @@ describe('lo que se guarda se cuenta en la portada', () => {
 
 describe('con cobertura', () => {
   it('no se enseña lo guardado: hay red para preguntar y nadie ha preguntado todavía', async () => {
-    const persona = montarPortada()
-    apiQueContesta(pasadaDeUnTramite())
-    await buscar(persona, '08402')
-    await listaDeOficinas()
+    await unaBusquedaGuardada()
 
     volverAAbrirla()
     apiSinConexion()
@@ -206,7 +195,7 @@ describe('con cobertura', () => {
 
     // El campo sí se propone, que es lo que ya hacía. Lo que no sale es una
     // lista de oficinas de hace un rato sin que nadie la haya pedido.
-    expect(campoDelCodigoPostal().value).toBe('08402')
+    expect(campoDelCodigoPostal().value).toBe(LA_ZONA)
     expect(screen.queryByRole('list', { name: /oficinas/i })).toBe(null)
   })
 })

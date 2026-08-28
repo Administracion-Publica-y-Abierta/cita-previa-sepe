@@ -28,6 +28,7 @@ import {
 import {
   codigoPostalDeLaDireccion,
   filtrosDeLaDireccion,
+  loGuardadoDeLaZona,
   loUltimoConsultado,
   NINGUNO,
   ponerEnLaDireccion,
@@ -179,8 +180,7 @@ export function Hero() {
    * de la página de error del navegador. Con red no se enseña: habiendo forma
    * de preguntar, una lista de hace un rato que nadie ha pedido solo confunde.
    */
-  const recordado =
-    !habiaRed && guardado && (!compartido || guardado.codigoPostal === compartido) ? guardado : null
+  const recordado = habiaRed ? null : loGuardadoDeLaZona(guardado, compartido)
 
   // Se funde una vez y no en cada pintado: de aquí salen la lista y los puntos
   // del mapa, y darles un objeto nuevo cada vez que se teclea en el campo es
@@ -267,14 +267,15 @@ export function Hero() {
         porPedir.current = []
 
         // Quedarse sin red y no traer nada deja la pantalla peor que estaba: se
-        // enseña lo guardado de **esta misma zona**, que es lo que quien
-        // pregunta tenía delante hace un rato. De otra zona no, que sería
-        // contestar por un sitio que nadie ha preguntado.
-        const guardado = fin === 'sin-conexion' ? loUltimoConsultado() : null
+        // enseña lo guardado de esta zona, que es lo que quien pregunta tenía
+        // delante hace un rato.
+        const rescate =
+          fin === 'sin-conexion' ? loGuardadoDeLaZona(loUltimoConsultado(), codigoPostal) : null
         setLlegando((antes) => {
           const final = acabada(antes ?? empezando(numero), fin)
-          const sirve = guardado?.codigoPostal === codigoPostal && loQueContesto(final).length === 0
-          return sirve && guardado ? deLaMemoria(guardado.estado) : final
+          // Lo traído manda sobre lo guardado, aunque sea media lista: es de
+          // ahora, y lo guardado no.
+          return rescate && loQueContesto(final).length === 0 ? deLaMemoria(rescate.estado) : final
         })
 
         if (fin === 'rechazado') setAviso(LO_RECHAZA_EL_SERVIDOR)

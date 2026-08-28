@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { inflateSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import manifest from '@/app/manifest'
 import { metadata, viewport } from '@/app/layout'
@@ -25,6 +26,32 @@ function loQueMide(camino: string): { ancho: number; alto: number } {
   // primeros campos son ancho y alto en 32 bits.
   expect([...bytes.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
   return { ancho: bytes.readUInt32BE(16), alto: bytes.readUInt32BE(20) }
+}
+
+/**
+ * El dibujo de un PNG: sus píxeles, ya descomprimidos.
+ *
+ * Se comparan los píxeles y no los bytes del fichero porque lo segundo sería
+ * comparar la salida de `zlib`, que puede cambiar con la versión de Node sin
+ * que el dibujo cambie ni un punto: un test que se pone rojo al actualizar Node
+ * no dice nada de este repositorio.
+ */
+function elDibujoDe(bytes: Buffer): { ancho: number; alto: number; pixeles: Buffer } {
+  const trozos: Buffer[] = []
+  let donde = 8
+  while (donde < bytes.length) {
+    const largo = bytes.readUInt32BE(donde)
+    if (bytes.toString('ascii', donde + 4, donde + 8) === 'IDAT') {
+      trozos.push(bytes.subarray(donde + 8, donde + 8 + largo))
+    }
+    donde += largo + 12
+  }
+
+  return {
+    ancho: bytes.readUInt32BE(16),
+    alto: bytes.readUInt32BE(20),
+    pixeles: inflateSync(Buffer.concat(trozos)),
+  }
 }
 
 describe('el manifiesto', () => {
@@ -91,7 +118,12 @@ describe('los iconos del repositorio', () => {
     // icono que puede cambiar sin que nadie lo mire. Esta comprobación es lo
     // que evita lo contrario: que el dibujo cambie y los ficheros se queden.
     for (const { nombre, bytes } of iconos()) {
-      expect([...readFileSync(join(PUBLICO, nombre))]).toEqual([...bytes])
+      const guardado = elDibujoDe(readFileSync(join(PUBLICO, nombre)))
+      const dibujado = elDibujoDe(bytes)
+
+      expect(guardado.ancho).toBe(dibujado.ancho)
+      expect(guardado.alto).toBe(dibujado.alto)
+      expect(guardado.pixeles.equals(dibujado.pixeles)).toBe(true)
     }
   })
 })

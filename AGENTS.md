@@ -23,6 +23,7 @@ acelerar el ritmo de peticiones al SEPE no es de estilo y no se negocia.
 | `npm run tipos` | Comprobación de tipos. |
 | `npm run lint` | Reglas de estilo. |
 | `npm run fixtures -- <ruta>` | Rehace los fixtures desde las capturas `.har`. |
+| `npm run iconos` | Rehace los iconos de la aplicación, que están guardados. |
 
 ## El mapa
 
@@ -198,6 +199,55 @@ que la del techo del freno: **el deslizador de distancia se mueve con
 flechas serían noventa y cinco pulsaciones por test. Que se pueda mover con el
 teclado se prueba aparte, y ahí sí con la persona.
 
+## Se añade a la pantalla de inicio, y abre sin cobertura
+
+Quien busca cita del SEPE mira **muchas veces al día y desde el móvil**. De ahí
+salen las dos mitades de esto: que se pueda tener como una aplicación —icono,
+pantalla completa, `src/app/manifest.ts`— y que **abra dentro de un túnel**, que
+es la que de verdad cambia el día a día.
+
+Abrir sin cobertura son dos piezas que se tocan lo justo:
+
+- **La carcasa** (`public/sw.js`), que hace que haya página. Guarda la portada y
+  los ficheros de la aplicación y los sirve cuando no hay red. No lleva ni un
+  dato del SEPE: `/api` no se toca a propósito, porque una respuesta suya
+  guardada sería enseñar un hueco de hace horas como si fuera de ahora.
+- **Lo último consultado**, que hace que haya algo que leer. Se guarda en el
+  navegador de quien pregunta (`lo-que-recuerda-el-navegador.ts`) y se enseña
+  con la fase `de-memoria`, con el día y la hora en que se consultó y dicho como
+  lo que es: algo que no se ha podido comprobar. Es la misma regla que gobierna
+  el resto de la pantalla, mirada desde el otro lado.
+
+Se llega a enseñarlo por dos caminos, y la regla de si vale —`loGuardadoDeLaZona`—
+está escrita **una vez** porque dos copias acaban siendo dos reglas distintas:
+al abrir sin red, y cuando una búsqueda se queda sin llegar y no trajo nada.
+
+Tres cosas que conviene saber antes de tocarlo:
+
+- **La cobertura se mira al abrir**, no en cada pintado (`cobertura.ts`).
+  `onLine` cambia solo —basta entrar en un túnel o salir—, y releerlo hacía
+  desaparecer de delante la lista guardada dejando una pantalla que decía que
+  buscaba sin que nadie estuviera buscando nada. Y de sus dos respuestas solo
+  `false` se puede creer: `true` también lo dice el wifi del bar que pide
+  contraseña.
+- **Cambiar los iconos o la versión de MapLibre es subir el número de
+  `CARCASA`** en el mismo cambio. Lo de `_next/static` lleva la versión en el
+  nombre y se puede servir de lo guardado sin miedo; esos dos no, y quien ya
+  tenga la carcasa se quedaría con los de antes.
+- **En desarrollo el service worker no se registra.** Servir de la caché unos
+  ficheros que cambian a cada guardado es depurar contra código de hace dos
+  cambios. Para probarlo: `npm run build && npm start`.
+
+Los avisos **no están aquí**: sin push, sin VAPID y sin service worker de
+notificaciones. Llegan con el flujo de avisos y con su issue, y hasta entonces
+la portada dice que están en camino sin un botón que dé a entender que se pueden
+activar.
+
+Los iconos los dibuja `scripts/iconos.mjs` —un PNG a mano con `zlib`, sin
+dependencias— y **están guardados en el repositorio**: el manifiesto apunta a
+rutas fijas y un icono que se rehace en cada despliegue puede cambiar sin que
+nadie lo mire. Si cambia el dibujo: `npm run iconos`.
+
 ## El patrón de test: `montarApp()`
 
 **Todo test empieza montando la aplicación con un `fetch` y un reloj falsos, en
@@ -291,6 +341,14 @@ que no cabe en una invocación se continúa en la siguiente.
 No se añaden más costuras, y no se intercepta a nivel de red (MSW): añade una
 capa que hay que depurar aparte y no cubre el reloj.
 
+**La excepción, escrita para que no sea silenciosa**: el service worker
+(`public/sw.js`) tiene una tercera, el almacén de cachés del navegador, en
+`pruebas/ayudantes/la-carcasa.ts`. No es una costura de la aplicación —ningún
+módulo de `src/` la usa— sino del único código que corre fuera de ella: lo que
+hace un service worker *es* guardar y servir de la caché, así que sin fingir el
+almacén no queda nada que mirar. Se abre ahí y no aquí, y el resto de la
+aplicación sigue con dos.
+
 **El almacén compartido no es una tercera costura.** El de memoria es código
 de producción —es el que corre en `npm run dev`— y el de Redis se construye
 por encima del `fetch`, o sea de la costura que ya había: los tests lo
@@ -365,6 +423,44 @@ solo la primera vez que arranca, y va commiteada por eso: sin ella, cada `npm
 test` —que ahora levanta la aplicación— dejaría `tsconfig.json` modificado en
 el `git status` de quien los ejecute. No se le puede poner un comentario al
 lado: `next` reescribe ese fichero como JSON y se los comería.
+
+### La carcasa, probada ejecutándola
+
+El service worker no se puede mirar por la pantalla: lo suyo pasa antes de que
+exista ninguna, en un hilo que jsdom no tiene. Se prueba corriéndolo, con
+`montarLaCarcasa()`:
+
+```ts
+const carcasa = montarLaCarcasa({ '/': PORTADA, '/_next/static/chunks/8401.js': '…' })
+await carcasa.instalar()
+carcasa.sinRed()
+await carcasa.pedir('/') // contesta la portada guardada
+```
+
+Lee `public/sw.js` del disco y lo ejecuta en un contexto con su almacén de
+cachés y su red de mentira, así que lo que se prueba es el fichero que se
+despliega y no una copia suya.
+
+Y en los tests de interfaz, lo que se le finge al `navigator` —si hay cobertura
+(`pruebas/interfaz/cobertura.ts`), qué móvil dice ser y si la web ya está
+añadida a la pantalla de inicio (`pruebas/interfaz/el-movil.ts`)— lo deshace
+`preparar.ts` después de cada test, junto con lo que los módulos se guardan de
+una vez para otra. Un test que quita la red se la quitaría a los siguientes, y
+lo que rompe entonces no se parece en nada a la causa.
+
+### Las comprobaciones que miran el código fuente
+
+Además de las de protección de datos, que ya estaban, hay unas cuantas en
+`pruebas/carcasa.test.ts` que leen ficheros en vez de mirar la respuesta: que no
+se use `next-pwa`, que no haya dos service workers, que no aparezca ni un `push`
+ni una clave VAPID, y que el layout registre la carcasa.
+
+Es el mismo motivo de siempre y no la costumbre: **el comportamiento que hay que
+impedir es el que todavía nadie ha escrito**. Un `push` añadido de lado sería
+una promesa que la web no está haciendo en ninguna pantalla, y borrar la línea
+que registra el service worker deja pasando todos los tests de la carcasa una
+aplicación que no abre sin red. El día que una de estas se pueda comprobar por
+comportamiento, se cambia; lo que no se hace es borrarla.
 
 ## Los fixtures
 

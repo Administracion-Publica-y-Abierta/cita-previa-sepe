@@ -5,6 +5,7 @@ import { POST } from '@/app/api/busqueda/route'
 import { deNdjson } from '@/nucleo/ndjson'
 import type { EventoDeLaPasada } from '@/sepe/pasada'
 import { dejarCorrer } from './ayudantes/dejar-correr'
+import { ficherosDe } from './ayudantes/ficheros'
 import { geocodificadorNoConoce } from './ayudantes/geocodificador-falso'
 import { loQueSeEscribe } from './ayudantes/lo-que-se-escribe'
 import { montarApp } from './ayudantes/montar-app'
@@ -120,15 +121,6 @@ async function leerLaPasada(respuesta: Response): Promise<EventoDeLaPasada[]> {
 
   for await (const evento of deNdjson<EventoDeLaPasada>(respuesta.body)) eventos.push(evento)
   return eventos
-}
-
-/** Los ficheros de código que cuelgan de un directorio, en cualquier nivel. */
-function ficherosDe(raiz: string): string[] {
-  return readdirSync(raiz, { withFileTypes: true }).flatMap((entrada) => {
-    const camino = join(raiz, entrada.name)
-    if (entrada.isDirectory()) return ficherosDe(camino)
-    return /\.tsx?$/.test(entrada.name) ? [camino] : []
-  })
 }
 
 /**
