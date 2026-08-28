@@ -60,8 +60,10 @@ aparecen en la especificación.
 
 Next.js en Vercel para la interfaz y el proxy hacia el SEPE (sus respuestas
 no traen cabeceras CORS, así que las peticiones van desde el servidor).
-Supabase para las suscripciones y el vigilante programado. Web Push para los
-avisos. Todo en planes gratuitos.
+MapLibre GL JS para el mapa, con las teselas de OpenFreeMap: **sin clave de
+API**, que en una web de servicio público no es un detalle. Supabase para las
+suscripciones y el vigilante programado. Web Push para los avisos. Todo en
+planes gratuitos.
 
 ## Cómo ayudar
 

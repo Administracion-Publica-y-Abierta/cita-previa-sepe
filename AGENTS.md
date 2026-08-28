@@ -24,6 +24,26 @@ acelerar el ritmo de peticiones al SEPE no es de estilo y no se negocia.
 | `npm run lint` | Reglas de estilo. |
 | `npm run fixtures -- <ruta>` | Rehace los fixtures desde las capturas `.har`. |
 
+## El mapa
+
+Es de **MapLibre GL JS** sobre las teselas de **OpenFreeMap**, sin clave de
+API. Lo que hay que saber antes de tocarlo:
+
+- **Casi nada de lo que decide el mapa está en el componente.** `src/interfaz/
+  mapa/puntos.ts` decide qué se dibuja y dónde se encuadra, y `estilo.ts` con
+  qué aspecto: los dos son datos y se prueban en Node. `mapa.tsx` es solo el
+  pegamento con MapLibre, y ahí no se mete lógica que se pueda sacar.
+- **Sin WebGL no hay mapa, y no pasa nada.** Se pregunta antes de traerse la
+  librería, así que quien no puede pintarlo tampoco se descarga casi un mega
+  de JavaScript. Es también lo que pasa en los tests: jsdom no pinta, y lo que
+  se prueba ahí es que la lista sigue siendo el resultado completo.
+- **El worker se copia a `public/mapa/` en cada `dev` y cada `build`**
+  (`scripts/copiar-el-mapa.mjs`), y `setWorkerUrl` apunta ahí. MapLibre lo
+  busca con `import.meta.url`, que dentro de un bundle no lleva a
+  `node_modules`: sin esto el worker se muere sin decir nada y el mapa pinta el
+  fondo y ni una calle. Parece que funciona, y es lo que lo hace caro de
+  encontrar.
+
 ## El patrón de test: `montarApp()`
 
 **Todo test empieza montando la aplicación con un `fetch` y un reloj falsos, en

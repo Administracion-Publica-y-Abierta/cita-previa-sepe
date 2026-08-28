@@ -18,8 +18,8 @@ const CODIGO = 'https://github.com/Administracion-Publica-y-Abierta/cita-previa-
 
 export default function Portada() {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-6 py-12 sm:py-20">
-      <header className="flex flex-col gap-4">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-12 sm:py-20">
+      <header className="mx-auto flex w-full max-w-3xl flex-col gap-4">
         <p className="text-base font-medium uppercase tracking-wide opacity-70">
           Esto no es el SEPE. Proyecto independiente.
         </p>
@@ -44,7 +44,7 @@ export default function Portada() {
 
       <Hero />
 
-      <footer className="flex flex-col gap-2 border-t border-black/10 pt-6 text-base opacity-80 dark:border-white/15">
+      <footer className="mx-auto flex w-full max-w-3xl flex-col gap-2 border-t border-black/10 pt-6 text-base opacity-80 dark:border-white/15">
         <p>
           <strong>Qué guardamos de ti: nada.</strong> No hay cuentas ni base de datos, y el código postal no
           viaja en ninguna dirección que quede registrada. El último que usas se queda en tu navegador, para
