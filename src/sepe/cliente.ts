@@ -147,14 +147,22 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
       // grabación, que es justo el aviso que no se puede perder.
       const { ok, cuerpo } = await postear(ruta, parametros, acepta)
 
-      if (ok && !cuerpo.trim()) throw new SepeSinAgenda()
+      if (ok && !cuerpo.trim()) {
+        // El vacío es lo que endurece el ritmo: tres seguidos y la pausa se
+        // dobla. Se anota aquí porque este es el único sitio que ve las
+        // respuestas del SEPE una por una. Una página de error no cuenta: eso
+        // es la sesión sorda, y se arregla renovándola, no frenando.
+        await freno.anotar('vacia')
+        throw new SepeSinAgenda()
+      }
 
       if (ok) {
-        try {
-          return interpretar(cuerpo)
-        } catch {
-          // Cae al reintento de abajo.
+        const salida = loQueSalga(() => interpretar(cuerpo))
+        if (salida.bien) {
+          await freno.anotar('buena')
+          return salida.valor
         }
+        // Si no, cae al reintento de abajo.
       }
 
       // Una página de error donde tenía que ir la respuesta: la sesión se ha
@@ -182,6 +190,22 @@ function crearSesion(fetch: Fetch, freno: Freno): SesionSepe {
         return cuerpo
       })
     },
+  }
+}
+
+/**
+ * Interpreta y dice si ha podido, en vez de dejar volar el error.
+ *
+ * Que `interpretar` reviente es la señal de reintento y no un fallo que
+ * contar, pero el `try` no puede envolver también lo que viene después: una
+ * anotación al freno que fallara se leería como "la respuesta no valía" y
+ * costaría una sesión nueva y dos pausas por nada.
+ */
+function loQueSalga<T>(interpretar: () => T): { bien: true; valor: T } | { bien: false } {
+  try {
+    return { bien: true, valor: interpretar() }
+  } catch {
+    return { bien: false }
   }
 }
 

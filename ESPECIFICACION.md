@@ -87,6 +87,28 @@ la descifra y coloca el `JSESSIONID` a mano en la cabecera `Cookie` de su
 Dos ventajas: no hace falta Redis ni Postgres para reservar, y el DNI nunca
 toca un disco nuestro.
 
+### Corrección: la Fase 1 sí necesita un almacén compartido
+
+Lo de arriba sigue valiendo **para el estado de la reserva**: eso va en la
+cookie y no toca disco. Lo que no se sostiene es el "sin base de datos" a
+secas, y el motivo no es la caché sino **el freno**.
+
+En serverless no hay memoria compartida entre invocaciones: un limitador que
+vive en variables del proceso deja sencillamente de existir, y dos visitantes
+simultáneos llaman al SEPE en el mismo instante, sin los 2,5 segundos de
+separación. "Sin base de datos" acaba significando "sin freno", y eso
+`CONTRIBUTING.md` no lo admite.
+
+Así que la Fase 1 lleva un punto de coordinación compartido —Redis gestionado
+en plan gratuito— que sostiene tres cosas: el cubo de fichas del ritmo global,
+el contador de vacíos consecutivos que lo endurece y, ya que está, la caché de
+consultas. Se prefiere a Postgres por una razón operativa que esta misma
+especificación ya recoge en §7: el proyecto gratuito de Supabase se pausa a los
+siete días sin actividad, y esta fase puede pasar semanas sin una visita.
+
+Sin configurar, la aplicación cae a un almacén en memoria y lo avisa por el
+registro: vale en local, no vale desplegado.
+
 **Aviso operativo**: desde el paso 5 hay un reloj de diez minutos. La
 interfaz debe enseñarlo.
 

@@ -44,12 +44,34 @@ Lo que devuelve:
 - `reloj` — `reloj.avanzar(2500)` mueve el tiempo sin gastarlo.
 
 Admite `respuestas` —respuestas puestas a mano para los caminos que no hay
-grabados: un error, un HTML de saturación— e `instanteInicial`, por si un test
-necesita otra fecha. El reloj arranca por defecto en el instante de la segunda
-captura, para que las fechas de los fixtures sigan siendo futuro.
+grabados: un error, un HTML de saturación—, `instanteInicial`, por si un test
+necesita otra fecha, y `configuracion`, para el TTL de la caché y el ancho de
+su clave. El reloj arranca por defecto en el instante de la segunda captura,
+para que las fechas de los fixtures sigan siendo futuro.
+
+Devuelve además el `almacen`, que es donde viven el freno y la caché. Sirve
+para lo único que no se puede montar de otra forma:
+
+```ts
+const primera = montarApp()
+const segunda = otraInvocacion(primera)   // otro proceso, mismo almacén
+```
+
+`otraInvocacion` monta **otra aplicación** con su memoria y su `fetch`
+propios, compartiendo el reloj y el almacén. Es lo más parecido a dos
+funciones serverless atendiendo a la vez, y es la única forma de comprobar lo
+que de verdad se le pide al freno y a la caché: que valgan **entre**
+invocaciones y no solo dentro de una. Un single-flight guardado en una
+variable del proceso pasaría el test de dos búsquedas simultáneas y fallaría
+en producción.
 
 El ritmo de 2,5 s no es un parámetro que un test pueda bajar, y no lo será: un
 test que necesite tiempo mueve el reloj, no el freno.
+
+Lo que sí es un parámetro es el TTL de la caché y el ancho de su clave, y por
+eso los tests de la caché se escriben **sobre el parámetro** y no sobre el
+valor que tenga hoy: el día que la clave se ensanche a provincia, se cambia un
+valor y los tests siguen diciendo lo mismo.
 
 ### Las dos únicas costuras
 
@@ -62,6 +84,13 @@ test que necesite tiempo mueve el reloj, no el freno.
 
 No se añaden más costuras, y no se intercepta a nivel de red (MSW): añade una
 capa que hay que depurar aparte y no cubre el reloj.
+
+**El almacén compartido no es una tercera costura.** El de memoria es código
+de producción —es el que corre en `npm run dev`— y el de Redis se construye
+por encima del `fetch`, o sea de la costura que ya había: los tests lo
+ejercitan de verdad, con un Redis de mentira que habla su protocolo REST.
+`pruebas/almacen.test.ts` pasa la misma batería a los dos, que es lo que hace
+que probar contra el de memoria diga algo sobre el que va desplegado.
 
 ### Qué es un buen test aquí
 
