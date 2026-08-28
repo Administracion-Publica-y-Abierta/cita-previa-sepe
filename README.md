@@ -43,8 +43,29 @@ npm run dev     # la aplicación, en http://localhost:3000
 npm test        # la batería de tests
 ```
 
-No hace falta configurar nada: los tests no salen a la red, contestan con
-tráfico real del SEPE ya grabado y anonimizado. Cómo se escribe un test aquí
+En local no hace falta configurar nada: los tests no salen a la red, contestan
+con tráfico real del SEPE ya grabado y anonimizado, y el estado compartido cae
+a la memoria del proceso.
+
+**Desplegado sí hace falta.** El ritmo de peticiones al SEPE y la caché viven
+en un Redis compartido, porque en serverless la memoria del proceso no
+sobrevive entre invocaciones y sin estado compartido no hay freno que valga.
+Dos variables de entorno, las que pone la integración de Vercel (o sus
+equivalentes `UPSTASH_REDIS_REST_*`):
+
+```sh
+KV_REST_API_URL=...
+KV_REST_API_TOKEN=...
+```
+
+Opcionales, con sus valores de fábrica: `CACHE_TTL_MS` (90000) y
+`CACHE_ANCHO_DE_CLAVE` (`codigo-postal`, o `provincia` el día que alguien mida
+que se puede).
+
+En local, sin esas variables, la aplicación arranca con el almacén en memoria y
+lo avisa por el registro. **Desplegada no arranca**: sin estado compartido el
+freno solo vale dentro de cada invocación, que es como no tenerlo, y eso es una
+avería y no un detalle de configuración. Cómo se escribe un test aquí
 —y cómo se rehacen esas grabaciones— está en [AGENTS.md](AGENTS.md).
 
 La especificación completa está en **[ESPECIFICACION.md](ESPECIFICACION.md)**:
@@ -59,11 +80,11 @@ aparecen en la especificación.
 ## Pila prevista
 
 Next.js en Vercel para la interfaz y el proxy hacia el SEPE (sus respuestas
-no traen cabeceras CORS, así que las peticiones van desde el servidor).
-MapLibre GL JS para el mapa, con las teselas de OpenFreeMap: **sin clave de
-API**, que en una web de servicio público no es un detalle. Supabase para las
-suscripciones y el vigilante programado. Web Push para los avisos. Todo en
-planes gratuitos.
+no traen cabeceras CORS, así que las peticiones van desde el servidor). Redis
+gestionado para el freno compartido y la caché. MapLibre GL JS para el mapa,
+con las teselas de OpenFreeMap: **sin clave de API**, que en una web de
+servicio público no es un detalle. Supabase para las suscripciones y el
+vigilante programado. Web Push para los avisos. Todo en planes gratuitos.
 
 ## Cómo ayudar
 

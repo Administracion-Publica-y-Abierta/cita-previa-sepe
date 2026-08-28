@@ -1,4 +1,6 @@
+import { almacenDeProduccion } from '@/almacen/de-produccion'
 import { crearApp, type App } from './app'
+import { configuracionDelEntorno } from './configuracion'
 import { relojDelSistema } from './reloj'
 
 let app: App | undefined
@@ -7,10 +9,20 @@ let app: App | undefined
  * La aplicación tal como la usan los Route Handlers. Se memoriza a nivel de
  * módulo porque en serverless eso es lo único que sobrevive entre peticiones
  * dentro de una misma instancia; nada que dependa de ello puede darlo por
- * garantizado (el freno y la caché irán a un almacén compartido, no aquí).
+ * garantizado, y por eso el freno y la caché viven en el almacén compartido y
+ * no aquí.
  */
 export function appDeProduccion(): App {
-  app ??= crearApp({ fetch: globalThis.fetch, reloj: relojDelSistema })
+  app ??= crearApp(
+    { fetch: globalThis.fetch, reloj: relojDelSistema },
+    {
+      // El almacén sí puede vivir aquí, al revés que la memoria del proceso:
+      // lo que se memoriza es el cliente, no el estado. El estado está en
+      // Redis y lo comparten todas las invocaciones, estén donde estén.
+      almacen: almacenDeProduccion({ fetch: globalThis.fetch, reloj: relojDelSistema }),
+      configuracion: configuracionDelEntorno(),
+    },
+  )
   return app
 }
 

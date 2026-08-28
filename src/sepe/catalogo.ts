@@ -1,14 +1,17 @@
 import { exigirProvincia } from '@/localizacion/geocodificador'
 import type { Reloj } from '@/nucleo/reloj'
 import { SepeNoResponde, SepeSinAgenda, type ClienteSepe } from './cliente'
+import type { EstadoDeLaConsulta } from './consultas'
+import { SinFicha } from './freno'
 import { ramasDelCatalogo, type Rama } from './niveles'
 
 /**
- * Los mismos tres estados que la búsqueda, y por el mismo motivo: `sin-agenda`
- * es información y `sepe-no-responde` es una avería, y la interfaz los pinta
- * distinto.
+ * Los mismos estados que la consulta, y por el mismo motivo: `sin-agenda` es
+ * información y `sepe-no-responde` es una avería, y la interfaz los pinta
+ * distinto. Se toman de ahí y no se escriben otra vez para que no puedan
+ * separarse: quien pregunta no distingue de cuál de las dos vino la respuesta.
  */
-export type EstadoDelCatalogo = 'ok' | 'sin-agenda' | 'sepe-no-responde'
+export type EstadoDelCatalogo = EstadoDeLaConsulta
 
 export interface ArbolDeTramites {
   estado: EstadoDelCatalogo
@@ -56,6 +59,15 @@ export function crearCatalogo(piezas: { clienteSepe: ClienteSepe; reloj: Reloj }
         // a pedir.
         if (error instanceof SepeSinAgenda) return vacio('sin-agenda', reloj.ahora())
         if (error instanceof SepeNoResponde) return vacio('sepe-no-responde', reloj.ahora())
+        // El freno no ha dado ficha: no se ha llegado a llamar al SEPE. No es
+        // una avería suya, y saltarse el freno no era una opción.
+        //
+        // Lo trata igual que el buscador, y hace falta: descubrir un catálogo
+        // son diez fichas seguidas, así que es justo lo que se queda sin
+        // ellas cuando el servicio va lleno. Sin esto, `SinFicha` salía por
+        // arriba y el hero contestaba un 500 —una avería nuestra— a algo que
+        // solo es «ahora mismo hay cola».
+        if (error instanceof SinFicha) return vacio('vuelve-en-un-momento', reloj.ahora())
         // Lo demás sale tal cual: un fallo de red o un fallo nuestro no es una
         // respuesta del SEPE y no debe disfrazarse de una.
         throw error
