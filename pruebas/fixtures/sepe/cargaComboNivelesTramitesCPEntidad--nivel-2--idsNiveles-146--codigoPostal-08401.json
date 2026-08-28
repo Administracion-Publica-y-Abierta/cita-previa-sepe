@@ -1,0 +1,91 @@
+{
+  "tipoNivelServicio": {
+    "idJerarquiaTramiteEstructura": 11,
+    "idJerarquiaTramite": 5,
+    "nombre": "Trámite",
+    "nivel": 2
+  },
+  "listaTiposTramites": [],
+  "listaNivelesTramites": [
+    {
+      "idServicio": 158,
+      "cualquierProfesional": null,
+      "nivel": 2,
+      "esServicio": false,
+      "ultimoNivel": true,
+      "codigoEntidad": null,
+      "idElementoJerarquiaTramite": 14,
+      "auxServicio": "He finalizado un trabajo: acceso o reanudación de prestación o subsidio"
+    },
+    {
+      "idServicio": 264,
+      "cualquierProfesional": null,
+      "nivel": 2,
+      "esServicio": false,
+      "ultimoNivel": true,
+      "codigoEntidad": null,
+      "idElementoJerarquiaTramite": 98,
+      "auxServicio": "Soy una persona víctima de violencia de género y quiero atención personalizada"
+    },
+    {
+      "idServicio": 164,
+      "cualquierProfesional": null,
+      "nivel": 2,
+      "esServicio": false,
+      "ultimoNivel": true,
+      "codigoEntidad": null,
+      "idElementoJerarquiaTramite": 20,
+      "auxServicio": "Otros accesos subsidio"
+    },
+    {
+      "idServicio": 152,
+      "cualquierProfesional": null,
+      "nivel": 2,
+      "esServicio": false,
+      "ultimoNivel": true,
+      "codigoEntidad": null,
+      "idElementoJerarquiaTramite": 8,
+      "auxServicio": "Declaración anual de Rentas o prórroga"
+    },
+    {
+      "idServicio": 149,
+      "cualquierProfesional": null,
+      "nivel": 2,
+      "esServicio": false,
+      "ultimoNivel": true,
+      "codigoEntidad": null,
+      "idElementoJerarquiaTramite": 5,
+      "auxServicio": "Cobros indebidos, sanciones, variaciones económicas o familiares y otras incidencias"
+    },
+    {
+      "idServicio": 155,
+      "cualquierProfesional": null,
+      "nivel": 2,
+      "esServicio": false,
+      "ultimoNivel": true,
+      "codigoEntidad": null,
+      "idElementoJerarquiaTramite": 11,
+      "auxServicio": "Estoy cobrando prestación/subsidio y ha cambiado mi situación"
+    },
+    {
+      "idServicio": 241,
+      "cualquierProfesional": null,
+      "nivel": 2,
+      "esServicio": false,
+      "ultimoNivel": true,
+      "codigoEntidad": null,
+      "idElementoJerarquiaTramite": 94,
+      "auxServicio": "Tránsito a IMV."
+    },
+    {
+      "idServicio": 161,
+      "cualquierProfesional": null,
+      "nivel": 2,
+      "esServicio": false,
+      "ultimoNivel": true,
+      "codigoEntidad": null,
+      "idElementoJerarquiaTramite": 17,
+      "auxServicio": "Información general, entrega documentación, modificación datos bancarios"
+    }
+  ]
+}

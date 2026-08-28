@@ -1,0 +1,110 @@
+{
+  "generadoPor": "scripts/extraer-fixtures.mjs",
+  "aviso": "Fichero generado. No editar a mano: se rehace al volver a extraer.",
+  "grabaciones": [
+    {
+      "clave": "cargaComboNivelesTramitesCPEntidad--nivel-1--codigoPostal-08401",
+      "endpoint": "cargaComboNivelesTramitesCPEntidad",
+      "metodo": "POST",
+      "discriminadores": {
+        "nivel": "1",
+        "idsNiveles": "",
+        "codigoPostal": "08401"
+      },
+      "capturaOrigen": "sede.sepe.gob.es_Archive [26-08-13 13-48-32].har",
+      "capturadoEn": "2026-08-13T13:47:10.818+02:00",
+      "resumen": "1 niveles de trámite",
+      "respuesta": {
+        "estado": 200,
+        "tipoContenido": "application/json; charset=UTF-8",
+        "cuerpo": "cargaComboNivelesTramitesCPEntidad--nivel-1--codigoPostal-08401.json"
+      }
+    },
+    {
+      "clave": "cargaComboNivelesTramitesCPEntidad--nivel-2--idsNiveles-146--codigoPostal-08401",
+      "endpoint": "cargaComboNivelesTramitesCPEntidad",
+      "metodo": "POST",
+      "discriminadores": {
+        "nivel": "2",
+        "idsNiveles": "146",
+        "codigoPostal": "08401"
+      },
+      "capturaOrigen": "sede.sepe.gob.es_Archive [26-08-13 13-48-32].har",
+      "capturadoEn": "2026-08-13T13:47:11.769+02:00",
+      "resumen": "8 niveles de trámite",
+      "respuesta": {
+        "estado": 200,
+        "tipoContenido": "application/json; charset=UTF-8",
+        "cuerpo": "cargaComboNivelesTramitesCPEntidad--nivel-2--idsNiveles-146--codigoPostal-08401.json"
+      }
+    },
+    {
+      "clave": "cargarComboGruposTramitesByNivel--idsNiveles-155--codigoPostal-08401",
+      "endpoint": "cargarComboGruposTramitesByNivel",
+      "metodo": "POST",
+      "discriminadores": {
+        "idsNiveles": "155",
+        "codigoPostal": "08401"
+      },
+      "capturaOrigen": "sede.sepe.gob.es_Archive [26-08-13 13-48-32].har",
+      "capturadoEn": "2026-08-13T13:47:21.447+02:00",
+      "resumen": "HTML con 6 <option>",
+      "respuesta": {
+        "estado": 200,
+        "tipoContenido": "text/html; charset=UTF-8",
+        "cuerpo": "cargarComboGruposTramitesByNivel--idsNiveles-155--codigoPostal-08401.html"
+      }
+    },
+    {
+      "clave": "cargaTiposAtencionMapa--codigoPostal-08401--idGrupoServicio-23",
+      "endpoint": "cargaTiposAtencionMapa",
+      "metodo": "POST",
+      "discriminadores": {
+        "codigoPostal": "08401",
+        "idGrupoServicio": "23"
+      },
+      "capturaOrigen": "sede.sepe.gob.es_Archive [26-08-13 13-48-32].har",
+      "capturadoEn": "2026-08-13T13:48:10.008+02:00",
+      "resumen": "0 oficinas, 0 con hueco",
+      "respuesta": {
+        "estado": 200,
+        "tipoContenido": "application/json; charset=UTF-8",
+        "cuerpo": "cargaTiposAtencionMapa--codigoPostal-08401--idGrupoServicio-23.json"
+      }
+    },
+    {
+      "clave": "cargaOficinasMapa--codigoPostal-08401--idGrupoServicio-23",
+      "endpoint": "cargaOficinasMapa",
+      "metodo": "POST",
+      "discriminadores": {
+        "codigoPostal": "08401",
+        "idGrupoServicio": "23"
+      },
+      "capturaOrigen": "sede.sepe.gob.es_Archive [26-08-13 13-48-32].har",
+      "capturadoEn": "2026-08-13T13:48:14.116+02:00",
+      "resumen": "46 oficinas, 0 con hueco",
+      "respuesta": {
+        "estado": 200,
+        "tipoContenido": "application/json; charset=UTF-8",
+        "cuerpo": "cargaOficinasMapa--codigoPostal-08401--idGrupoServicio-23.json"
+      }
+    },
+    {
+      "clave": "cargaTiposAtencionMapa--codigoPostal-08402--idGrupoServicio-631",
+      "endpoint": "cargaTiposAtencionMapa",
+      "metodo": "POST",
+      "discriminadores": {
+        "codigoPostal": "08402",
+        "idGrupoServicio": "631"
+      },
+      "capturaOrigen": "sede.sepe.gob.es_Archive [26-08-14 13-37-10].har",
+      "capturadoEn": "2026-08-14T13:35:38.055+02:00",
+      "resumen": "46 oficinas, 37 con hueco",
+      "respuesta": {
+        "estado": 200,
+        "tipoContenido": "application/json; charset=UTF-8",
+        "cuerpo": "cargaTiposAtencionMapa--codigoPostal-08402--idGrupoServicio-631.json"
+      }
+    }
+  ]
+}

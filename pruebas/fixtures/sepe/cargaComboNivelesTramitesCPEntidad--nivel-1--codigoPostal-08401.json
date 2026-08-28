@@ -1,0 +1,21 @@
+{
+  "tipoNivelServicio": {
+    "idJerarquiaTramiteEstructura": 8,
+    "idJerarquiaTramite": 5,
+    "nombre": "Tipo de oficina",
+    "nivel": 1
+  },
+  "listaTiposTramites": [],
+  "listaNivelesTramites": [
+    {
+      "idServicio": 146,
+      "cualquierProfesional": null,
+      "nivel": 1,
+      "esServicio": false,
+      "ultimoNivel": false,
+      "codigoEntidad": null,
+      "idElementoJerarquiaTramite": 2,
+      "auxServicio": "PRESTACIONES"
+    }
+  ]
+}

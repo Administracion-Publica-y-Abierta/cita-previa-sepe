@@ -1,0 +1,15 @@
+{
+  "listTipoAtencion": [
+    {
+      "idTipoAtencion": 1,
+      "tipoAtencion": "Presencial"
+    },
+    {
+      "idTipoAtencion": 3,
+      "tipoAtencion": "Telefónica"
+    }
+  ],
+  "listaTramites": [],
+  "txtComboSeleccionar": "--- Seleccionar ---",
+  "listaOficina": []
+}

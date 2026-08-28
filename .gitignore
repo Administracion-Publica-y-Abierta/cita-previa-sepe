@@ -1,0 +1,41 @@
+# Credenciales y datos personales. NUNCA subir: lleva DNI, teléfono y el
+# token del bot. Se publica vigila_sepe.env.example en su lugar.
+vigila_sepe.env
+
+# Estado y registros de ejecución
+vigila_sepe.log
+vigila_sepe_estado.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Sistema
+.DS_Store
+
+# Prototipo en Python que dio origen al proyecto. Se conserva en local
+# como referencia viva del flujo real del SEPE (endpoints, parámetros,
+# rarezas medidas), pero no se publica: lleva el .env con datos personales
+# y su sitio no es la raíz del repo de la webapp.
+old/
+
+# Node y Next
+/node_modules
+/.next/
+/out/
+/build
+/coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# Entorno y despliegue
+.env*
+.vercel
+
+# Capturas de red crudas. Llevan el DNI en las URLs de la parte de reserva y el
+# JSESSIONID en las cabeceras: no entran nunca. Los fixtures del repositorio
+# salen de ellas ya anonimizados, con scripts/extraer-fixtures.mjs.
+/capturas/
+*.har
