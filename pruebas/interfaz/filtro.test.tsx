@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { buscar, campoDelCodigoPostal, listaDeOficinas, montarPortada } from './la-portada'
+import { buscar, campoDelCodigoPostal, listaDeOficinas, loQueImpide, montarPortada } from './la-portada'
 import {
   apiQueContesta,
   apiQueContestaPorTurnos,
@@ -271,7 +271,7 @@ describe('marcar algo que todavía no se ha consultado', () => {
     api.romper()
     // En la alerta y no en el titular: una conexión que se cae no es un
     // resultado con cero huecos, y desde el #12 las dos cosas no se parecen.
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/se ha cortado/i))
+    await waitFor(() => expect(loQueImpide().textContent).toMatch(/se ha cortado/i))
 
     // Lo que se quedó esperando turno no puede contar como que ya viene de
     // camino: nadie lo trae ya, y quien lo marcó lo vería marcado y vacío para

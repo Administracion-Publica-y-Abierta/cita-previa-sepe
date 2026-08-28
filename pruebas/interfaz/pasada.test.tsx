@@ -1,12 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import {
-  buscar,
-  elResumen,
-  listaDeOficinas,
-  montarPortada,
-  tituloDeLosResultados,
-} from './la-portada'
+import { buscar, elResumen, listaDeOficinas, loQueImpide, montarPortada, tituloDeLosResultados } from './la-portada'
 import {
   apiQueContestaPorTurnos,
   apiQueVaContando,
@@ -216,8 +210,8 @@ describe('cuando la pasada no cabe en una respuesta', () => {
     // Mejor no consultar nada que una cadena de peticiones al SEPE que no lleva
     // a ninguna parte. Pero se dice, y como lo que es: no se ha podido
     // preguntar. Por eso se busca en la alerta y no en el titular.
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/ningún trámite/i))
-    expect(screen.getByRole('alert').textContent).not.toMatch(/no hay citas/i)
+    await waitFor(() => expect(loQueImpide().textContent).toMatch(/ningún trámite/i))
+    expect(loQueImpide().textContent).not.toMatch(/no hay citas/i)
     expect(api.peticiones.length).toBeLessThanOrEqual(2)
   })
 

@@ -56,6 +56,30 @@ export function elResumen(): HTMLElement {
   return screen.getByRole('status', { name: /resumen de la búsqueda/i })
 }
 
+/**
+ * El bloque que aparece solo cuando no se ha podido contestar, pedido por su
+ * nombre: el aviso del código postal es también un `alert` y los dos pueden
+ * estar a la vez, así que `getByRole('alert')` a secas no sabe cuál es cuál.
+ */
+export function loQueImpide(): HTMLElement {
+  return screen.getByRole('alert', { name: /lo que ha impedido contestar/i })
+}
+
+/** El aviso pegado al campo, la otra alerta de la pantalla. */
+export function elAvisoDelCampo(): HTMLElement {
+  return screen.getByRole('alert', { name: /aviso del código postal/i })
+}
+
+/**
+ * La línea que dice de cuándo es lo que se está mirando.
+ *
+ * Por su texto y no por su papel porque no tiene ninguno: es una línea suelta
+ * y no una región viva. Está aquí para que reescribirla se arregle en un sitio.
+ */
+export function laFrescura(): HTMLElement {
+  return screen.getByText(/consultado a las/i)
+}
+
 /** El contador de lo que dejan los filtros, la otra región viva de la pantalla. */
 export function elContador(): HTMLElement {
   return screen.getByRole('status', { name: /oficinas que dejan los filtros/i })

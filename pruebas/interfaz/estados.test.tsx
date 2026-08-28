@@ -5,8 +5,11 @@ import {
   BOTON,
   buscar,
   campoDelCodigoPostal,
+  elAvisoDelCampo,
   elResumen,
+  laFrescura,
   listaDeOficinas,
+  loQueImpide,
   montarPortada,
 } from './la-portada'
 import {
@@ -45,16 +48,6 @@ const SUBSIDIO = tramite({ id: 502, nombre: 'Subsidio por desempleo' })
 
 /** Media hora antes que el resto, para que las dos horas no se puedan confundir. */
 const MEDIA_HORA_ANTES = CONSULTADO_EN - 1_800_000
-
-/** El bloque que aparece solo cuando no se ha podido preguntar. */
-function loQueImpide(): HTMLElement {
-  return screen.getByRole('alert')
-}
-
-/** La línea que dice de cuándo es lo que se está mirando. */
-function laFrescura(): HTMLElement {
-  return screen.getByText(/consultado a las/i)
-}
 
 function botonDeVolverAComprobar(): HTMLElement {
   return screen.getByRole('button', { name: /volver a comprobar/i })
@@ -115,6 +108,23 @@ describe('«no hay huecos» y «el SEPE no está contestando»', () => {
     // del que no contestó, del que no se sabe nada. Eso lo cuenta la alerta.
     await waitFor(() => expect(loQueImpide().textContent).toMatch(/no responde/i))
     expect(elResumen().textContent).not.toMatch(/ninguna oficina/i)
+  })
+  it('el aviso del campo y el percance conviven, y cada uno se pide por su nombre', async () => {
+    const persona = montarPortada()
+    apiQueContesta(pasadaDeUnTramite({ estado: 'sepe-no-responde', oficinas: [] }))
+
+    await buscar(persona, '08402')
+    await waitFor(() => expect(loQueImpide()).toBeTruthy())
+
+    // Teclear un código postal malo con una búsqueda fallida delante pone dos
+    // `alert` en la pantalla a la vez. Son dos cosas distintas —una se arregla
+    // escribiendo bien, la otra volviendo en un rato— y por eso se llaman.
+    await persona.clear(campoDelCodigoPostal())
+    await persona.type(campoDelCodigoPostal(), '99999')
+
+    expect(screen.getAllByRole('alert')).toHaveLength(2)
+    expect(elAvisoDelCampo().textContent).toMatch(/provincia/i)
+    expect(loQueImpide().textContent).toMatch(/no responde/i)
   })
 })
 
@@ -285,6 +295,31 @@ describe('los dos casos degradados', () => {
     await waitFor(() => expect(loQueImpide().textContent).toMatch(/conexión/i))
     // Y se puede volver a intentar: el botón de buscar deja de estar apagado.
     expect(screen.getByRole('button', { name: BOTON }).hasAttribute('disabled')).toBe(false)
+  })
+
+  it('si lo único que llegó fue un SEPE caído, la conexión cortada no lo tapa', async () => {
+    const persona = montarPortada()
+    const api = apiQueVaContando()
+
+    await buscar(persona, '08402')
+    await waitFor(() => expect(api.peticiones).toHaveLength(1))
+    api.contar(cola([PRESTACION, SUBSIDIO]))
+    api.contar(resuelto({ tramite: PRESTACION, estado: 'sepe-no-responde', oficinas: [] }))
+    await waitFor(() => expect(loQueImpide()).toBeTruthy())
+
+    api.romper()
+    // Se espera a que la caída esté pintada y no al texto: con el botón
+    // apagado la pasada sigue viva, y afirmar sobre la alerta antes de eso es
+    // afirmar sobre lo de antes, que ya decía lo que se quiere comprobar.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: BOTON }).hasAttribute('disabled')).toBe(false),
+    )
+
+    // No hay ni una oficina que enseñar, así que lo que hay que contar es por
+    // qué. «La conexión se ha cortado» taparía lo que de verdad pasó —el SEPE
+    // no contestaba ya antes de que se fuera la red— y además lo bajaría de
+    // avería a aviso, que es la distinción entera de este issue.
+    expect(loQueImpide().textContent).toMatch(/no responde/i)
   })
 
   it('una conexión que se corta a media pasada no tira lo que ya había llegado', async () => {

@@ -450,7 +450,12 @@ export function Hero() {
         {/* Aparece solo cuando hay algo que decir: un `alert` que nace con el
             aviso dentro es el que los lectores de pantalla anuncian. */}
         {aviso !== null && (
-          <p className="text-base font-medium text-red-800 dark:text-red-300" id={AVISO} role="alert">
+          <p
+            aria-label="Aviso del código postal"
+            className="text-base font-medium text-red-800 dark:text-red-300"
+            id={AVISO}
+            role="alert"
+          >
             {aviso}
           </p>
         )}
@@ -500,6 +505,11 @@ export function Hero() {
             no puede leerse como un resultado con cero huecos. */}
         {dicho.percance && (
           <p
+            // Con nombre, por lo mismo que las dos regiones vivas: el aviso
+            // pegado al campo también es un `alert`, y los dos salen a la vez
+            // en cuanto alguien teclea un código postal malo con una búsqueda
+            // fallida delante. Sin nombre no habría forma de pedir este.
+            aria-label="Lo que ha impedido contestar"
             className={`rounded-lg border-2 px-4 py-3 text-lg font-medium ${COMO_SE_PINTA[dicho.percance.tono]}`}
             role="alert"
           >

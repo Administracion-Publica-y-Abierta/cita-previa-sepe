@@ -97,12 +97,25 @@ rato—. Por eso lo que la pantalla dice no es un texto sino tres
   buscar, ni los trámites que ahora mismo no se miran —esos costarían una
   pasada entera que nadie ha pedido—.
 
+La pantalla tiene **dos alertas y no una**: el percance y el aviso pegado al
+campo. Conviven —basta teclear un código postal malo con una búsqueda fallida
+delante—, así que las dos llevan nombre y se piden con `loQueImpide()` y
+`elAvisoDelCampo()`, nunca con `getByRole('alert')` a secas. Es la misma regla
+que ya tenían las dos regiones vivas, por la misma razón.
+
 Dos reglas que se saltan solas si no se vigilan. La hora es **el instante real
 de la consulta al SEPE** —viaja en el evento, no se mira el reloj al pintar—, y
 con varios trámites se enseña **la del más viejo**: la lista funde las oficinas
 de todos, así que la frescura que se puede prometer es la del peor. Y `sin-tramites`
 es el único estado que no trae oficinas y aun así **no** es un percance: el SEPE
 contestó, y volver a intentarlo no lo va a cambiar.
+
+Y cuando no queda **nada que enseñar**, lo que se cuenta es por qué, que no
+siempre es lo último que pasó: si el SEPE ya no contestaba antes de que se
+cayera la conexión, eso es lo que se dice. «Se ha cortado la conexión» taparía
+la avería de verdad y además la bajaría a aviso. Por eso `sinConexion` mira
+**quién contestó** y no cuántos trámites se resolvieron: uno resuelto en fallo
+no es nada que enseñar.
 
 ## Marcar trámites no relanza la búsqueda
 

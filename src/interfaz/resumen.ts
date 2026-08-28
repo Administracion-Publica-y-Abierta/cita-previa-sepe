@@ -118,8 +118,18 @@ export function loQueSeDice(estado: LoQueVaLlegando, oficinas: OficinaConSuTrami
  * había llegado no se tira: son oficinas de verdad, y siguen en la lista.
  */
 function sinConexion(estado: LoQueVaLlegando, oficinas: OficinaConSuTramite[]): LoQueSeDice {
-  if (estado.resueltos.length === 0) {
-    return { resumen: '', percance: { tono: 'averia', texto: SIN_CONEXION }, frescura: null }
+  // Se mira quién contestó y no cuántos se resolvieron: un trámite que se
+  // resolvió en fallo no es nada que enseñar. Y cuando no hay nada que enseñar,
+  // lo que hay que contar es **por qué**, que no siempre es la red: si el SEPE
+  // ya no contestaba antes de que se fuera, eso es lo que ha pasado. Decir
+  // «se ha cortado la conexión» lo taparía y además lo bajaría de avería a
+  // aviso, que es justo la distinción que este fichero existe para sostener.
+  if (queContestaron(estado).length === 0) {
+    return {
+      resumen: '',
+      percance: loQueImpidio(estado) ?? { tono: 'averia', texto: SIN_CONEXION },
+      frescura: null,
+    }
   }
 
   return {
