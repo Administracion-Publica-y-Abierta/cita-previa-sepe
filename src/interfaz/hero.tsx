@@ -26,7 +26,7 @@ import {
 } from './lo-que-recuerda-el-navegador'
 import { seguirLaPasada } from './pasada'
 import { Resultados } from './resultados'
-import { resumenDe, seCuentaAlgo, tituloDe } from './resumen'
+import { loQueSeDice, seCuentaAlgo, tituloDe, type Percance } from './resumen'
 
 /**
  * Un campo y un botón.
@@ -56,6 +56,19 @@ const TITULO = 'titulo-de-los-resultados'
  */
 const LO_RECHAZA_EL_SERVIDOR =
   'Ese código postal no vale. Comprueba que son cinco dígitos de una provincia española.'
+
+/**
+ * Cómo se pinta lo que ha impedido contestar.
+ *
+ * Que se vea distinto del titular no es adorno: está medido que el mismo
+ * trámite devuelve vacío y 46 oficinas con treinta segundos de diferencia, así
+ * que «no hay huecos» y «el SEPE no está contestando» no se pueden parecer.
+ * Quien lo lee no hace lo mismo en cada caso.
+ */
+const COMO_SE_PINTA: Record<Percance['tono'], string> = {
+  averia: 'border-red-700 text-red-900 dark:border-red-400 dark:text-red-200',
+  aviso: 'border-amber-600 text-amber-900 dark:border-amber-400 dark:text-amber-200',
+}
 
 /**
  * Ni el fragmento de la dirección ni lo que recuerda el navegador cambian
@@ -103,6 +116,15 @@ export function Hero() {
   const ultimaBusqueda = useRef(0)
   /** Con qué se abandona la que iba, para dejar de gastar peticiones al SEPE. */
   const enCurso = useRef<AbortController | null>(null)
+  /**
+   * El código postal de lo que se está mirando, que no siempre es el del campo:
+   * quien teclea otro y no llega a buscarlo sigue viendo la lista de antes.
+   *
+   * Es una referencia y no un estado porque no se pinta: solo hace falta al
+   * pulsar «Volver a comprobar», y guardarlo en un estado sería un pintado más
+   * por cada búsqueda a cambio de nada.
+   */
+  const loBuscado = useRef<string | null>(null)
 
   const buscarOficinas = useCallback((codigoPostal: string) => {
     // La anterior se abandona de verdad y no solo se ignora: seguir
@@ -114,6 +136,7 @@ export function Hero() {
 
     const numero = (ultimaBusqueda.current += 1)
     const esLaBuena = () => numero === ultimaBusqueda.current
+    loBuscado.current = codigoPostal
     setLlegando(empezando(numero))
 
     void seguirLaPasada(
@@ -130,6 +153,19 @@ export function Hero() {
       if (fin === 'rechazado') setAviso(LO_RECHAZA_EL_SERVIDOR)
     })
   }, [])
+
+  /**
+   * Volver a preguntar por lo que se está mirando.
+   *
+   * Hace falta porque esta pantalla se deja abierta: quien la mira lleva un
+   * rato con una lista delante y no tiene otra forma de saber si sigue valiendo.
+   * Puede que el SEPE no se llegue a consultar —dentro del TTL se contesta con
+   * lo guardado— y no pasa nada: la hora que se enseña es la de la consulta de
+   * verdad, así que se ve si el dato ha cambiado de edad o no.
+   */
+  const volverAComprobar = useCallback(() => {
+    if (loBuscado.current) buscarOficinas(loBuscado.current)
+  }, [buscarOficinas])
 
   // Un enlace compartido enseña la misma búsqueda: se busca solo. Lo que
   // recuerda el navegador solo se propone, porque no lo ha pedido nadie ahora
@@ -185,6 +221,7 @@ export function Hero() {
   // mientras no llegue nada, y darle al mapa una lista nueva cada vez que se
   // teclea en el campo es hacerle rehacer sus puntos por nada.
   const oficinas = useMemo(() => oficinasDe(estado), [estado])
+  const dicho = loQueSeDice(estado, oficinas)
   const hayTitulo = seCuentaAlgo(estado)
 
   return (
@@ -257,8 +294,47 @@ export function Hero() {
           anunciar.
         */}
         <p className="text-lg" role="status">
-          {resumenDe(estado, oficinas)}
+          {dicho.resumen}
         </p>
+
+        {/* Aparte del titular y con `alert`, que es lo que un lector de
+            pantalla anuncia interrumpiendo: lo que no se ha podido preguntar
+            no puede leerse como un resultado con cero huecos. */}
+        {dicho.percance && (
+          <p
+            className={`rounded-lg border-2 px-4 py-3 text-lg font-medium ${COMO_SE_PINTA[dicho.percance.tono]}`}
+            role="alert"
+          >
+            {dicho.percance.texto}
+          </p>
+        )}
+
+        {/* De cuándo es lo que se está mirando, y cómo pedir que se mire otra
+            vez. Van juntos porque es la misma pregunta: ¿esto sigue valiendo? */}
+        {hayTitulo && (
+          <div className="flex flex-wrap items-center gap-3">
+            {dicho.frescura && (
+              <p
+                className={
+                  dicho.frescura.viejo
+                    ? 'text-base font-medium text-amber-900 dark:text-amber-200'
+                    : 'text-base opacity-70'
+                }
+              >
+                {dicho.frescura.texto}
+              </p>
+            )}
+
+            <button
+              className="rounded-lg border-2 border-black/30 px-4 py-2 text-base font-medium disabled:opacity-60 dark:border-white/30"
+              disabled={estado.fase === 'buscando'}
+              onClick={volverAComprobar}
+              type="button"
+            >
+              Volver a comprobar
+            </button>
+          </div>
+        )}
 
         {/* En cuanto hay una oficina se enseña, sin esperar a que termine la
             pasada: eso es lo que hace que el mapa salga con el primer trámite

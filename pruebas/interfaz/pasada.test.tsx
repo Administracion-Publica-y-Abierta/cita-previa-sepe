@@ -207,9 +207,10 @@ describe('cuando la pasada no cabe en una respuesta', () => {
     await buscar(persona, '08402')
 
     // Mejor no consultar nada que una cadena de peticiones al SEPE que no lleva
-    // a ninguna parte. Pero se dice, y no se cuenta como que no hay citas.
-    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/ningún trámite/i))
-    expect(screen.getByRole('status').textContent).not.toMatch(/no hay citas/i)
+    // a ninguna parte. Pero se dice, y como lo que es: no se ha podido
+    // preguntar. Por eso se busca en la alerta y no en el titular.
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/ningún trámite/i))
+    expect(screen.getByRole('alert').textContent).not.toMatch(/no hay citas/i)
     expect(api.peticiones.length).toBeLessThanOrEqual(2)
   })
 

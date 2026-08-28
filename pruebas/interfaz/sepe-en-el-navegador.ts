@@ -21,7 +21,7 @@ import type { EventoDeLaPasada } from '@/sepe/pasada'
  */
 
 /** El instante de la segunda captura, el mismo con el que arrancan los tests del servidor. */
-const CONSULTADO_EN = Date.parse('2026-08-14T13:37:10+02:00')
+export const CONSULTADO_EN = Date.parse('2026-08-14T13:37:10+02:00')
 
 const GRANOLLERS: Localizacion = {
   lat: 41.6083,
@@ -29,6 +29,18 @@ const GRANOLLERS: Localizacion = {
   municipio: 'Granollers',
   provincia: 'Barcelona',
   precision: 'exacta',
+}
+
+/**
+ * El caso degradado del geocodificador: no reconoce el código postal y se cae
+ * al centro de la provincia. Hay resultados, pero los kilómetros son a ojo.
+ */
+export const CENTRO_DE_LA_PROVINCIA: Localizacion = {
+  lat: 41.7,
+  lng: 1.9,
+  municipio: null,
+  provincia: 'Barcelona',
+  precision: 'aproximada-provincial',
 }
 
 const UN_TRAMITE: Subtramite = { id: 631, nombre: 'Voy a salir al extranjero' }
@@ -52,8 +64,12 @@ export function oficina(parcial: Partial<Oficina> = {}): Oficina {
 }
 
 /** Qué trámites hay en la zona y desde dónde se miden los kilómetros. */
-export function cola(tramites: Subtramite[], estado: EstadoDeLaCola = 'ok'): EventoDeLaPasada {
-  return { tipo: 'cola', estado, consultadoEn: CONSULTADO_EN, localizacion: GRANOLLERS, tramites }
+export function cola(
+  tramites: Subtramite[],
+  estado: EstadoDeLaCola = 'ok',
+  localizacion: Localizacion = GRANOLLERS,
+): EventoDeLaPasada {
+  return { tipo: 'cola', estado, consultadoEn: CONSULTADO_EN, localizacion, tramites }
 }
 
 /** Un trámite resuelto, con lo que haya salido de él. */
@@ -63,14 +79,17 @@ export function resuelto(
     estado: EstadoDeLaConsulta
     desdeCache: boolean
     caducada: boolean
+    /** Cuándo se le preguntó al SEPE. Distinto por trámite: cada uno se consulta a su hora. */
+    consultadoEn: number
     oficinas: Oficina[]
   }> = {},
 ): EventoDeLaPasada {
-  const { tramite, estado, desdeCache, caducada, oficinas } = {
+  const { tramite, estado, desdeCache, caducada, consultadoEn, oficinas } = {
     tramite: UN_TRAMITE,
     estado: 'ok' as EstadoDeLaConsulta,
     desdeCache: false,
     caducada: false,
+    consultadoEn: CONSULTADO_EN,
     oficinas: [oficina()],
     ...parcial,
   }
@@ -80,7 +99,7 @@ export function resuelto(
     idTramite: tramite.id,
     nombreTramite: tramite.nombre,
     canal: { id: 1, nombre: 'Presencial' },
-    consultadoEn: CONSULTADO_EN,
+    consultadoEn,
     desdeCache,
     caducada,
     estado,
@@ -98,10 +117,10 @@ export function consultando(tramite: Subtramite): EventoDeLaPasada {
  * cola, el aviso y el resultado.
  */
 export function pasadaDeUnTramite(
-  parcial: Parameters<typeof resuelto>[0] = {},
+  parcial: Parameters<typeof resuelto>[0] & { localizacion?: Localizacion } = {},
 ): EventoDeLaPasada[] {
   const tramite = parcial.tramite ?? UN_TRAMITE
-  return [cola([tramite]), consultando(tramite), resuelto(parcial)]
+  return [cola([tramite], 'ok', parcial.localizacion), consultando(tramite), resuelto(parcial)]
 }
 
 /** Una pasada que no llega a tener trámites que consultar. */
@@ -187,12 +206,37 @@ export function apiQueNoContesta(): ApiFalsa {
   return api
 }
 
+/**
+ * Una API a la que no se llega.
+ *
+ * El `fetch` del navegador no contesta con un estado cuando no hay red: revienta.
+ * Es el caso que hay que poder mirar —quedarse girando para siempre es la
+ * alternativa— y no se puede montar con una respuesta.
+ */
+export function apiSinConexion(): ApiFalsa {
+  const api: ApiFalsa = { peticiones: [] }
+
+  vi.stubGlobal('fetch', (entrada: RequestInfo | URL, opciones?: RequestInit) => {
+    apuntar(api, entrada, opciones)
+    return Promise.reject(new TypeError('Failed to fetch'))
+  })
+
+  return api
+}
+
 /** Una pasada que va soltando eventos cuando el test lo diga, y no antes. */
 export interface ApiQueVaContando extends ApiFalsa {
   /** Suelta un evento por el streaming que ya está abierto. */
   contar(evento: EventoDeLaPasada): void
   /** Cierra la respuesta: la búsqueda ha terminado. */
   cerrar(): void
+  /**
+   * Corta el streaming a la mitad, como una conexión que se cae.
+   *
+   * No es lo mismo que `cerrar`: ahí la pasada terminó bien. Aquí quedaban
+   * trámites por llegar y ya no van a llegar.
+   */
+  romper(): void
 }
 
 /**
@@ -213,6 +257,10 @@ export function apiQueVaContando(): ApiQueVaContando {
     },
     cerrar() {
       mando?.close()
+      mando = null
+    },
+    romper() {
+      mando?.error(new TypeError('network error'))
       mando = null
     },
   }

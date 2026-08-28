@@ -75,6 +75,31 @@ negocia— y eso no lo mira nadie ni lo aguanta una función serverless. Por eso
   detrás son oficinas de la misma zona, y mover la vista con cada uno le
   quitaría el mapa de las manos a quien lo está mirando mientras el resto llega.
 
+## «No hay huecos» y «el SEPE no contesta» no se parecen
+
+Está medido: el mismo trámite devuelve vacío y 46 oficinas con treinta segundos
+de diferencia. Confundirlos es mentir, porque quien pregunta no hace lo mismo en
+cada caso —con lo primero se va a otra oficina, con lo segundo vuelve en un
+rato—. Por eso lo que la pantalla dice no es un texto sino tres
+(`src/interfaz/resumen.ts`):
+
+- **El titular** cuenta lo que hay y vive en la región viva. «Ninguna con hueco»
+  es un titular: el SEPE contestó, y eso es un resultado.
+- **El percance** es lo que ha impedido contestar. Se pinta aparte y se anuncia
+  como `alert`, que es lo que un lector de pantalla interrumpe para decir.
+  `averia` es que **no se pudo preguntar** —el SEPE no contesta, no hay red—;
+  `aviso`, que se preguntó y lo que vino no es un resultado. Ninguno lleva
+  códigos de error: un número no le dice a nadie qué hacer ahora.
+- **La frescura** dice a qué hora se consultó, y con ella va el botón de volver
+  a comprobar. Van juntos porque son la misma pregunta: ¿esto sigue valiendo?
+
+Dos reglas que se saltan solas si no se vigilan. La hora es **el instante real
+de la consulta al SEPE** —viaja en el evento, no se mira el reloj al pintar—, y
+con varios trámites se enseña **la del más viejo**: la lista funde las oficinas
+de todos, así que la frescura que se puede prometer es la del peor. Y `sin-tramites`
+es el único estado que no trae oficinas y aun así **no** es un percance: el SEPE
+contestó, y volver a intentarlo no lo va a cambiar.
+
 ## El patrón de test: `montarApp()`
 
 **Todo test empieza montando la aplicación con un `fetch` y un reloj falsos, en
