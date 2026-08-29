@@ -1,6 +1,11 @@
 import type { EstadoDeLaCola } from '@/sepe/cola'
-import { enHoraDeConsulta } from './formato'
-import { cuantosFaltan, type LoQueVaLlegando, type OficinaConSuTramite } from './lo-que-va-llegando'
+import { enFechaYHoraDeConsulta, enHoraDeConsulta } from './formato'
+import {
+  cuantosFaltan,
+  loQueContesto,
+  type LoQueVaLlegando,
+  type OficinaConSuTramite,
+} from './lo-que-va-llegando'
 
 /**
  * Qué se le dice a quien pregunta en cada momento.
@@ -29,6 +34,17 @@ import { cuantosFaltan, type LoQueVaLlegando, type OficinaConSuTramite } from '.
 const EMPEZANDO = 'Buscando oficinas. Puede tardar un minuto: al SEPE se le pregunta despacio a propósito.'
 
 const SIN_CONEXION = 'No se ha podido conectar. Comprueba la conexión y vuelve a probar.'
+
+/**
+ * Lo que se enseña sin cobertura: lo último que se consultó.
+ *
+ * Se dice como un percance y no como una nota al pie porque es la misma regla
+ * de siempre mirada desde el otro lado: un dato que no se ha podido comprobar
+ * no puede leerse como uno recién traído. Que la lista siga ahí es lo útil;
+ * creerse que es de ahora es lo que haría perder un viaje.
+ */
+const SIN_COBERTURA =
+  'Sin conexión: esto es lo último que consultaste y no se ha podido comprobar si sigue valiendo.'
 
 /** La pasada se quedó a medias, pero lo que ya había llegado sigue en la lista. */
 const SE_CORTO = 'La conexión se ha cortado antes de terminar: quedaban trámites por consultar.'
@@ -93,7 +109,7 @@ export function seCuentaAlgo(estado: LoQueVaLlegando): boolean {
  * cuenta sería prometer en el título lo que la lista no tiene.
  */
 export function tituloDe(estado: LoQueVaLlegando): string {
-  const contestados = queContestaron(estado)
+  const contestados = loQueContesto(estado)
   const [primero] = contestados
   if (contestados.length === 1 && primero) return `Resultados para «${primero.nombreTramite}»`
   if (contestados.length > 1) return `Resultados de ${contestados.length} trámites`
@@ -107,6 +123,8 @@ export function loQueSeDice(estado: LoQueVaLlegando, oficinas: OficinaConSuTrami
       return NADA_QUE_DECIR
     case 'sin-conexion':
       return sinConexion(estado, oficinas)
+    case 'de-memoria':
+      return loGuardado(estado, oficinas)
     case 'buscando':
     case 'terminada':
       return deLaPasada(estado, oficinas)
@@ -124,7 +142,7 @@ function sinConexion(estado: LoQueVaLlegando, oficinas: OficinaConSuTramite[]): 
   // ya no contestaba antes de que se fuera, eso es lo que ha pasado. Decir
   // «se ha cortado la conexión» lo taparía y además lo bajaría de avería a
   // aviso, que es justo la distinción que este fichero existe para sostener.
-  if (queContestaron(estado).length === 0) {
+  if (loQueContesto(estado).length === 0) {
     return {
       resumen: '',
       percance: loQueImpidio(estado) ?? { tono: 'averia', texto: SIN_CONEXION },
@@ -136,6 +154,31 @@ function sinConexion(estado: LoQueVaLlegando, oficinas: OficinaConSuTramite[]): 
     resumen: titularDeLasOficinas(estado, oficinas),
     percance: { tono: 'aviso', texto: SE_CORTO },
     frescura: frescuraDe(estado),
+  }
+}
+
+/**
+ * Lo guardado de la última vez, que es lo que hay cuando no hay red.
+ *
+ * El titular es el mismo que tendría esa lista recién traída —son las mismas
+ * oficinas— y lo que cambia es lo de debajo: qué día y a qué hora se consultó,
+ * y que ahora mismo no se ha podido comprobar.
+ */
+function loGuardado(estado: LoQueVaLlegando, oficinas: OficinaConSuTramite[]): LoQueSeDice {
+  const contestados = loQueContesto(estado)
+
+  return {
+    resumen: titularDeLasOficinas(estado, oficinas),
+    percance: { tono: 'aviso', texto: SIN_COBERTURA },
+    frescura:
+      contestados.length === 0
+        ? null
+        : {
+            // Con la fecha entera y no solo la hora, al revés que todo lo
+            // demás: lo guardado es lo único que puede ser de ayer.
+            texto: `Consultado el ${enFechaYHoraDeConsulta(Math.min(...contestados.map((resuelto) => resuelto.consultadoEn)))}.`,
+            viejo: true,
+          },
   }
 }
 
@@ -220,7 +263,7 @@ function loQueImpidio(estado: LoQueVaLlegando): Percance | null {
  * del fallo, no el de un dato, y no hay nada suyo en la lista.
  */
 function frescuraDe(estado: LoQueVaLlegando): Frescura | null {
-  const contestados = queContestaron(estado)
+  const contestados = loQueContesto(estado)
   if (contestados.length === 0) return null
 
   // El más viejo y no el más reciente. La lista funde las oficinas de todos los
@@ -235,11 +278,6 @@ function frescuraDe(estado: LoQueVaLlegando): Frescura | null {
       ? `Consultado a las ${hora}: estos datos no son de ahora y el SEPE no contesta para actualizarlos.`
       : `Consultado a las ${hora}.`,
   }
-}
-
-/** Los trámites de los que hay respuesta del SEPE, que son los que se están mirando. */
-function queContestaron(estado: LoQueVaLlegando) {
-  return estado.resueltos.filter((resuelto) => resuelto.estado === 'ok')
 }
 
 /**
@@ -286,7 +324,7 @@ function titularDeLasOficinas(estado: LoQueVaLlegando, oficinas: OficinaConSuTra
     // está hablando también de aquel del que no se sabe nada. De lo que falló
     // se encarga el percance; aquí no se dice nada, que es lo honrado.
     const todosContestaron =
-      estado.resueltos.length > 0 && queContestaron(estado).length === estado.resueltos.length
+      estado.resueltos.length > 0 && loQueContesto(estado).length === estado.resueltos.length
     return todosContestaron ? NINGUNA_OFICINA : ''
   }
 

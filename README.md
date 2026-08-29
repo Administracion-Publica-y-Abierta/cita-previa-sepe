@@ -32,7 +32,7 @@ buscador todavía no.
 
 - [ ] Comprobar si el SEPE ata la sesión a la IP (bloquea todo lo demás)
 - [ ] Fase 1 — buscador de huecos, solo lectura
-- [ ] Fase 2 — avisos con Web Push
+- [ ] Fase 2 — avisos con Web Push (**hoy no existen**: la web lo dice)
 - [ ] Fase 3 — reserva asistida
 
 ## Ponerlo en marcha
@@ -46,6 +46,16 @@ npm test        # la batería de tests
 En local no hace falta configurar nada: los tests no salen a la red, contestan
 con tráfico real del SEPE ya grabado y anonimizado, y el estado compartido cae
 a la memoria del proceso.
+
+**Para probarla como aplicación del móvil** —añadida a la pantalla de inicio, y
+abriendo sin cobertura— hace falta la versión de producción: el service worker
+no se registra en `npm run dev`, porque servir de la caché unos ficheros que
+cambian a cada guardado es depurar contra código de hace dos cambios.
+
+```sh
+npm run build && npm start   # y ahí sí: instalar, apagar la red y recargar
+npm run iconos               # rehace los iconos si cambia el dibujo
+```
 
 **Desplegado sí hace falta.** El ritmo de peticiones al SEPE y la caché viven
 en un Redis compartido, porque en serverless la memoria del proceso no

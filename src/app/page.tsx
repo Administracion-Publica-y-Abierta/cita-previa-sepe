@@ -1,3 +1,4 @@
+import { AnadirALaPantallaDeInicio } from '@/interfaz/anadir-a-la-pantalla-de-inicio'
 import { Hero } from '@/interfaz/hero'
 
 /**
@@ -44,11 +45,33 @@ export default function Portada() {
 
       <Hero />
 
+      {/* Debajo de la búsqueda y no encima: quien llega viene a mirar si hay
+          cita, y lo primero que tiene que ver es el campo. Esto se lee después,
+          que es cuando tiene sentido plantearse tenerlo a mano. */}
+      <aside className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+        <AnadirALaPantallaDeInicio />
+
+        {/*
+          Los avisos son la razón por la que alguien tendría esto en la pantalla
+          de inicio, y hoy no existen. Se dice tal cual: ni un botón ni una
+          casilla que dé a entender que se pueden activar, porque quien la
+          pulsara se iría creyendo que ya no tiene que volver a mirar, y esa es
+          justo la persona que se queda sin cita.
+        */}
+        <p className="text-base opacity-80">
+          Los avisos por notificación cuando aparezca un hueco{' '}
+          <strong>todavía no existen</strong>: están en camino. De momento hay que volver a mirar,
+          y por eso lo de arriba: para que mirar cueste un toque.
+        </p>
+      </aside>
+
       <footer className="mx-auto flex w-full max-w-3xl flex-col gap-2 border-t border-black/10 pt-6 text-base opacity-80 dark:border-white/15">
         <p>
           <strong>Qué guardamos de ti: nada.</strong> No hay cuentas ni base de datos, y el código postal no
           viaja en ninguna dirección que quede registrada. El último que usas se queda en tu navegador, para
-          proponértelo la próxima vez, y se borra al borrar los datos del sitio.
+          proponértelo la próxima vez, y con él la última lista que consultaste, para poder enseñártela
+          cuando te quedes sin cobertura. Las dos cosas están solo en tu móvil y se borran al borrar los
+          datos del sitio.
         </p>
         <p>
           Los horarios y los huecos vienen de la sede pública del SEPE en el momento de la consulta y{' '}

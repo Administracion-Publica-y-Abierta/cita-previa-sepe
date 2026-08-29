@@ -13,9 +13,12 @@ import { avisoDe, DIGITOS, soloDigitos } from './codigo-postal'
 import { FiltroDeTramites } from './filtro-de-tramites'
 import { aplicando, SIN_FILTROS, type Filtros } from './filtros'
 import { FiltrosDeLaLista } from './filtros-de-la-lista'
+import { habiaCoberturaAlAbrir } from './cobertura'
 import {
   acabada,
+  deLaMemoria,
   empezando,
+  loQueContesto,
   NADA_TODAVIA,
   oficinasDe,
   siguiendo,
@@ -25,9 +28,12 @@ import {
 import {
   codigoPostalDeLaDireccion,
   filtrosDeLaDireccion,
+  loGuardadoDeLaZona,
+  loUltimoConsultado,
   NINGUNO,
   ponerEnLaDireccion,
   recordarCodigoPostal,
+  recordarElResultado,
   tramitesDeLaDireccion,
   ultimoCodigoPostal,
 } from './lo-que-recuerda-el-navegador'
@@ -114,6 +120,16 @@ const NINGUNO_EN_EL_SERVIDOR = () => NINGUNO
 /** Y de los filtros de la lista, tampoco: sin filtros no se filtra. */
 const SIN_FILTROS_EN_EL_SERVIDOR = () => SIN_FILTROS
 
+/** Ni de lo que se guardó la última vez, que también es del navegador. */
+const NADA_GUARDADO_EN_EL_SERVIDOR = () => null
+
+/**
+ * Y en el servidor se da por hecho que hay red: no hay ningún móvil al que
+ * preguntarle, y lo que se pinta de más se corrige en el primer pintado del
+ * navegador.
+ */
+const CON_RED_EN_EL_SERVIDOR = () => true
+
 export function Hero() {
   // La búsqueda que trae el enlace, y el último código postal usado. Se leen
   // en el primer pintado del navegador y no en un efecto: el campo tiene que
@@ -133,6 +149,17 @@ export function Hero() {
     SIN_FILTROS_EN_EL_SERVIDOR,
   )
 
+  // Lo último que se consultó y si hay red, que es lo que decide si esto abre
+  // con algo delante o con la pantalla vacía. Se leen aquí y no en un efecto por
+  // lo mismo que el código postal: lo que hay que enseñar tiene que salir en el
+  // primer pintado del navegador, no aparecer después.
+  const guardado = useSyncExternalStore(
+    SIN_CAMBIOS,
+    loUltimoConsultado,
+    NADA_GUARDADO_EN_EL_SERVIDOR,
+  )
+  const habiaRed = useSyncExternalStore(SIN_CAMBIOS, habiaCoberturaAlAbrir, CON_RED_EN_EL_SERVIDOR)
+
   /** Lo tecleado, o `null` mientras no se haya tecleado nada. */
   const [escrito, setEscrito] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -143,20 +170,39 @@ export function Hero() {
   /** Los filtros de la lista tocados a mano, o `null` mientras valgan los del enlace. */
   const [tocados, setTocados] = useState<Filtros | null>(null)
 
+  /**
+   * Lo guardado, cuando toca enseñarlo: sin red, y siendo de la zona que se
+   * está abriendo.
+   *
+   * Sin red no se sale a preguntar —no hay a dónde— y lo que quien mira
+   * necesita ver es lo último que consultó, que es la mitad de para qué sirve
+   * tener esto en la pantalla de inicio: abrirlo en el metro y ver algo en vez
+   * de la página de error del navegador. Con red no se enseña: habiendo forma
+   * de preguntar, una lista de hace un rato que nadie ha pedido solo confunde.
+   */
+  const recordado = habiaRed ? null : loGuardadoDeLaZona(guardado, compartido)
+
+  // Se funde una vez y no en cada pintado: de aquí salen la lista y los puntos
+  // del mapa, y darles un objeto nuevo cada vez que se teclea en el campo es
+  // hacerles rehacer el trabajo por nada.
+  const loRecordado = useMemo(() => (recordado ? deLaMemoria(recordado.estado) : null), [recordado])
+
   // El `??` de fuera y no `||`: borrar el campo del todo es teclear, y
   // entonces tiene que quedarse vacío en vez de volver a proponer lo de antes.
   // Dentro sí es `||`, porque los dos son cadenas y se busca la primera con
   // algo dentro.
-  const codigoPostal = escrito ?? (compartido || propuesto)
+  const codigoPostal = escrito ?? (compartido || recordado?.codigoPostal || propuesto)
 
   /** Los trámites marcados. Ninguno quiere decir que se miran todos. */
-  const elegidos = marcado ?? marcadosEnElEnlace
+  const elegidos = marcado ?? recordado?.elegidos ?? marcadosEnElEnlace
 
   const filtros = tocados ?? filtrosDelEnlace
 
   // Si el enlace traía búsqueda y todavía no ha llegado nada, es que se está
   // buscando: la consulta sale en el mismo pintado, desde el efecto de abajo.
-  const estado: LoQueVaLlegando = llegando ?? (compartido ? empezando(0) : NADA_TODAVIA)
+  // Salvo que no haya red, y entonces lo que hay es lo que se guardó.
+  const estado: LoQueVaLlegando =
+    llegando ?? loRecordado ?? (compartido ? empezando(0) : NADA_TODAVIA)
 
   /**
    * Cuál es la búsqueda que vale. Solo la última: si se lanzan dos —la del
@@ -219,7 +265,19 @@ export function Hero() {
       // marcó los vería marcados y vacíos para siempre.
       if (fin !== 'terminada' || porPedir.current.length === 0) {
         porPedir.current = []
-        setLlegando((antes) => acabada(antes ?? empezando(numero), fin))
+
+        // Quedarse sin red y no traer nada deja la pantalla peor que estaba: se
+        // enseña lo guardado de esta zona, que es lo que quien pregunta tenía
+        // delante hace un rato.
+        const rescate =
+          fin === 'sin-conexion' ? loGuardadoDeLaZona(loUltimoConsultado(), codigoPostal) : null
+        setLlegando((antes) => {
+          const final = acabada(antes ?? empezando(numero), fin)
+          // Lo traído manda sobre lo guardado, aunque sea media lista: es de
+          // ahora, y lo guardado no.
+          return rescate && loQueContesto(final).length === 0 ? deLaMemoria(rescate.estado) : final
+        })
+
         if (fin === 'rechazado') setAviso(LO_RECHAZA_EL_SERVIDOR)
         return
       }
@@ -288,6 +346,16 @@ export function Hero() {
   useEffect(() => {
     if (yaArrancado.current) return
     yaArrancado.current = true
+
+    // Con lo guardado delante no se sale a preguntar: no hay red, que es
+    // justamente por lo que está delante. Lo que sí se apunta es qué zona se
+    // está mirando, que es lo que hace falta para volver a comprobarla en
+    // cuanto vuelva la cobertura.
+    if (recordado) {
+      zona.current = recordado.codigoPostal
+      return
+    }
+
     if (!compartido) return
 
     // El que llega por enlace también es el último usado: si no se recordara,
@@ -298,7 +366,7 @@ export function Hero() {
     // y volver a consultar la zona entera sería gastarle al SEPE lo que nadie
     // ha pedido.
     buscarOficinas(compartido, marcadosEnElEnlace)
-  }, [compartido, marcadosEnElEnlace, buscarOficinas])
+  }, [compartido, marcadosEnElEnlace, buscarOficinas, recordado])
 
   function alEscribir(tecleado: string): void {
     const limpio = soloDigitos(tecleado)
@@ -397,6 +465,26 @@ export function Hero() {
     () => (referencia === null ? oficinas : aplicando(oficinas, filtros, referencia)),
     [oficinas, filtros, referencia],
   )
+
+  /**
+   * Lo que se acaba de mirar se guarda en el navegador, para poder enseñarlo el
+   * día que se abra esto sin cobertura.
+   *
+   * Se guarda al terminar y no según llega: son nueve escrituras de la lista
+   * entera contra una, y a mitad de pasada lo guardado sería medio resultado.
+   * Y no se vuelve a guardar lo que salió de aquí —`de-memoria`— porque sería
+   * escribir encima lo mismo, con el riesgo de dejarlo peor si algo cambia.
+   *
+   * Los filtros de la lista no van aquí: son de quien mira y no del SEPE, ya
+   * viven en la dirección, y guardarlos escondería oficinas al abrir sin red
+   * sin que se viera por qué.
+   */
+  useEffect(() => {
+    if (estado.fase === 'buscando' || estado.fase === 'de-memoria') return
+    if (loQueContesto(estado).length === 0) return
+
+    recordarElResultado({ codigoPostal: zona.current, elegidos, estado })
+  }, [estado, elegidos])
 
   // Los filtros se escriben en la dirección según se tocan, para que el enlace
   // que hay en la barra sea siempre el de lo que se está viendo. La zona y no
