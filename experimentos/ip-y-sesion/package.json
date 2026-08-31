@@ -1,0 +1,7 @@
+{
+  "name": "experimento-ip-y-sesion",
+  "private": true,
+  "type": "module",
+  "description": "Usar y tirar: mide si el SEPE ata la sesión a la IP de origen. Se borra cuando conteste.",
+  "engines": { "node": ">=20" }
+}

@@ -210,14 +210,57 @@ Si la ata, el flujo de reserva se rompe en Vercel, porque cada paso sale de
 una invocación distinta con IP distinta. Y se rompería en el peor momento:
 con el hueco retenido y el reloj corriendo.
 
-### Experimento (media tarde)
+El experimento está escrito y calibrado en `experimentos/ip-y-sesion/` —código
+de usar y tirar, fuera de `src/` y sin tests, que se borra cuando la pregunta
+esté cerrada—. Lo medido hasta ahora está abajo; lo que falta, al final.
 
-Una función en Vercel que haga `GET` a la portada, guarde la cookie, y desde
-**otra invocación** haga `POST` a `cargaTiposAtencionMapa` con esa cookie.
+### Lo medido (31-08-2026, 08401)
 
-- Devuelve JSON con oficinas → adelante.
-- Devuelve vacío o HTML → hace falta salida con IP fija: un proxy en una
-  máquina propia (treinta líneas) o IP de egreso dedicada (de pago).
+**La fase 1 no está expuesta a esta pregunta, y eso ya se puede dar por bueno.**
+`cargaComboNivelesTramitesCPEntidad` —el catálogo de trámites— contesta
+exactamente lo mismo con la cookie buena, sin ninguna cookie y con una
+inventada. Es apátrida: no hay ahí sesión que atar a ninguna IP. El buscador
+seguiría funcionando aunque la respuesta a la pregunta grande fuera la mala.
+
+**`cargaTiposAtencionMapa` sí mira la sesión**, y por eso es el sitio correcto
+donde preguntar. Con la cookie recién repartida contestó 5 de 13 veces; sin
+cookie, con una inventada, y con la portada visitada pero la cookie tirada, 0
+de 34 (Fisher, p ≈ 0,0008). Ese cuarto caso está para separar «vale la cookie»
+de «vale haber pasado por la portada»: es la cookie.
+
+Tres cosas medidas de paso que cambian cómo hay que leer cualquier medición
+futura contra el SEPE:
+
+- **El SEPE solo contesta ~3 de cada 8 veces aun con todo correcto.** Es la
+  intermitencia que ya está en la tabla de §7, y obliga a comparar **tasas**
+  y no respuestas sueltas: un cero suelto no distingue «está atada» de «hoy no
+  contesta». Por eso la sonda desplegable lleva un paso de control que hace
+  las dos mitades en la misma invocación.
+- **La primera llamada del mapa trae `listaOficina` vacía** y solo los canales;
+  las oficinas salen por `cargaOficinasMapa`. El listón de «ha contestado» son
+  los canales, no las oficinas — pedir oficinas aquí haría fallar el control
+  por un motivo que no tiene que ver con la sesión.
+- **La portada reparte un `JSESSIONID` nuevo en cada visita**, reconozca o no
+  la que se le mande. No sirve como detector de «¿reconoces esta sesión?», que
+  era el atajo evidente.
+
+### Lo que falta
+
+**La mitad de las dos IPs.** Hace falta desplegar la sonda y conducirla desde
+fuera (`dos-invocaciones.mjs`), y eso es una cuenta de alguien. La lectura no
+cambia respecto a lo que ya decía esta sección: si las cruzadas contestan al
+mismo ritmo que el control, la sesión no está atada y la agenda y la reserva se
+despliegan tal cual; si el control contesta y las cruzadas no, hace falta
+salida con IP fija —un proxy en una máquina propia (treinta líneas) o IP de
+egreso dedicada, de pago—, y eso cambia arquitectura y coste.
+
+**Y un límite que no se quita desplegando.** Esto mide la sesión *del mapa*. Las
+pantallas del recorrido de la agenda (`showPantalla*`) contestan con el cuerpo
+vacío tanto con la sesión caminada como sin ella: dejan estado en el servidor y
+no lo cuentan. Lo único que lee ese estado es `calendarioServicio`, y pide
+`documento` —un DNI—, que es justo lo que esta fase no maneja. Así que un «no
+está atada» del mapa es una señal muy buena para la fase 3, pero no la prueba
+completa de su flujo.
 
 Nótese la asimetría: **el vigilante casi no sufre este problema**, porque
 cada pasada es una sesión nueva y corta que no arrastra nada. Aunque el test

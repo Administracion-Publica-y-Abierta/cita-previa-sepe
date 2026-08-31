@@ -30,7 +30,9 @@ En construcción. El andamiaje ya está: la aplicación arranca, la batería de
 tests corre y hay fixtures de tráfico real del SEPE con los que probar. El
 buscador todavía no.
 
-- [ ] Comprobar si el SEPE ata la sesión a la IP (bloquea todo lo demás)
+- [ ] Comprobar si el SEPE ata la sesión a la IP — a medias: ya **no bloquea la
+      fase 1** (medido: el catálogo es apátrida), y sigue abierto para la agenda
+      y la reserva. Está en [§6](ESPECIFICACION.md)
 - [ ] Fase 1 — buscador de huecos, solo lectura
 - [ ] Fase 2 — avisos con Web Push (**hoy no existen**: la web lo dice)
 - [ ] Fase 3 — reserva asistida
