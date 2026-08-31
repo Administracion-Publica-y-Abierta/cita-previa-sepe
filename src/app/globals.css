@@ -1,32 +1,981 @@
 @import "tailwindcss";
 
+/*
+  El lenguaje visual de la portada, en un solo sitio.
+
+  Está aquí y no en un módulo llamado «lenguaje visual» porque esto es lo que
+  ya era global: los colores, la tipografía, los radios y las sombras. Los
+  componentes piden clases con nombre —`.boton`, `.panel`, `.hueco`— y no
+  repiten ni un color, que es lo que hace que cambiar el verde sea cambiar una
+  línea y no rebuscar por veinte ficheros.
+
+  **Blanca y solo blanca.** No hay juego de tokens oscuros y `color-scheme` lo
+  dice: lo que hay debajo de esto es una sede pública en blanco, y una versión
+  oscura al lado de la suya se lee como otra web distinta. Por eso tampoco hay
+  ni un `dark:` en los componentes.
+
+  **Y las fuentes no se descargan.** Ni con `@import` a Google ni con el
+  cargador de Next: esto se usa de pie en la calle con la conexión que haya, y
+  una portada que espera a tres ficheros de un tercero para pintar el titular
+  es una portada que tarda justo donde no puede. Se usa la del sistema, que ya
+  está en el móvil de quien mira.
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  color-scheme: light;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-}
+  --tinta: #14161a;
+  --tinta-suave: #5f6570;
+  --linea: #e7e8e4;
+  --linea-fuerte: #d6d8d2;
+  --lienzo: #ffffff;
+  --superficie: #f7f7f4;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* El verde es el único color con carácter: lo lleva lo que hay hueco. */
+  --acento: #0b7a5a;
+  --acento-hondo: #095f47;
+  --acento-tenue: #e9f4ef;
+
+  /* Y el rojo, lo que ha impedido contestar. Nunca «no hay huecos». */
+  --alarma: #a52d1a;
+  --alarma-tenue: #fdeeea;
+  /* El aviso es lo que se preguntó y no trajo un resultado: ni verde ni rojo. */
+  --atencion: #7a5a12;
+  --atencion-tenue: #fdf6e6;
+
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --sombra: 0 1px 2px rgba(20, 22, 26, 0.04), 0 10px 30px -16px rgba(20, 22, 26, 0.18);
+  --sombra-alta: 0 2px 4px rgba(20, 22, 26, 0.05), 0 20px 44px -20px rgba(20, 22, 26, 0.24);
+
+  --titular:
+    system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --texto:
+    system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --cifras: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  /* Tipografía del sistema: una fuente descargada retrasa el primer pintado y
-     esta web se va a usar de pie en la calle, con la conexión que haya. */
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    Arial,
-    sans-serif;
+  background: var(--lienzo);
+  color: var(--tinta);
+  font-family: var(--texto);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--titular);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+/* El foco se ve siempre y en verde: media web se recorre con el tabulador. */
+:focus-visible {
+  outline: 2.5px solid var(--acento);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Para lo que solo tiene que leer un lector de pantalla. */
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* El ancho de la portada, igual en todas las secciones. */
+.ancho {
+  width: min(1120px, calc(100% - 40px));
+  margin-inline: auto;
+}
+
+/* El sobretítulo en monoespaciada: es la firma tipográfica de la portada. */
+.sobre {
+  font-family: var(--cifras);
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+}
+
+/* ---- La barra de arriba ---- */
+
+.barra {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--lienzo) 90%, transparent);
+  backdrop-filter: saturate(1.6) blur(14px);
+  border-bottom: 1px solid var(--linea);
+}
+.barra__dentro {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  height: 68px;
+}
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--titular);
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.04em;
+  text-decoration: none;
+}
+.marca__punto {
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  background: var(--acento);
+  flex: none;
+}
+.enlaces {
+  display: flex;
+  gap: 24px;
+  margin-left: 14px;
+  font-size: 14.5px;
+  color: var(--tinta-suave);
+}
+.enlaces a {
+  text-decoration: none;
+}
+.enlaces a:hover {
+  color: var(--tinta);
+}
+.barra__derecha {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---- Botones y pastillas ---- */
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--acento);
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 24px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.18s ease;
+}
+.boton:hover:not(:disabled) {
+  background: var(--acento-hondo);
+}
+.boton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.boton--liso {
+  background: transparent;
+  color: var(--tinta);
+  border: 1px solid var(--linea-fuerte);
+}
+.boton--liso:hover:not(:disabled) {
+  background: var(--superficie);
+  border-color: var(--tinta);
+}
+.boton--pequeno {
+  padding: 9px 16px;
+  font-size: 14px;
+}
+
+.pastilla {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  border: 1px solid var(--linea-fuerte);
+  background: var(--lienzo);
+  color: var(--tinta);
+  border-radius: 999px;
+  padding: 8px 15px;
+  font: inherit;
+  font-size: 13.5px;
+  transition: 0.16s ease;
+  white-space: nowrap;
+}
+.pastilla:hover:not(:disabled) {
+  border-color: var(--tinta);
+}
+.pastilla:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.panel {
+  border: 1px solid var(--linea);
+  border-radius: var(--r-lg);
+  background: var(--lienzo);
+  box-shadow: var(--sombra);
+}
+
+/* ---- El hero ---- */
+
+.hero {
+  padding: 64px 0 56px;
+}
+/* Alineado con el resto de secciones y no centrado: el hero y lo que hay
+   debajo tienen que empezar en la misma vertical, o el salto se lee como un
+   fallo de maquetación. */
+.hero__texto {
+  max-width: 680px;
+  margin-inline: 0;
+}
+.titular {
+  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  margin: 16px 0 20px;
+}
+.titular em {
+  font-style: normal;
+  color: var(--acento);
+}
+.entradilla {
+  font-size: clamp(17px, 1.6vw, 19px);
+  color: var(--tinta-suave);
+  max-width: 54ch;
+}
+.hero__aqui-no {
+  margin-top: 16px;
+  font-size: 16px;
+  max-width: 54ch;
+}
+.hero__aqui-no a {
+  color: var(--acento-hondo);
+  font-weight: 600;
+}
+
+.campo {
+  margin-top: 34px;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.campo__fila {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+/*
+  Un solo campo y no cinco celdas: el navegador lo autorrellena de una vez, un
+  lector de pantalla lee «código postal» una vez y no cinco, y quien pega los
+  cinco dígitos no tiene que ver cómo se reparten.
+*/
+.campo__dato {
+  flex: 1 1 200px;
+  min-width: 0;
+  height: 60px;
+  padding: 0 18px;
+  border: 1px solid var(--linea-fuerte);
+  border-radius: var(--r-md);
+  background: var(--lienzo);
+  color: var(--tinta);
+  font-family: var(--cifras);
+  font-size: clamp(22px, 4vw, 28px);
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.campo__dato::placeholder {
+  color: var(--linea-fuerte);
+}
+.campo__dato:focus {
+  outline: none;
+  border-color: var(--acento);
+  box-shadow: 0 0 0 3px var(--acento-tenue);
+}
+.campo__dato[aria-invalid='true'] {
+  border-color: var(--alarma);
+}
+.campo__boton {
+  flex: none;
+  border-radius: var(--r-md);
+  padding-inline: 26px;
+}
+.campo__letra {
+  font-size: 13.5px;
+  color: var(--tinta-suave);
+  max-width: 56ch;
+}
+.campo__error {
+  color: var(--alarma);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ---- Los trámites ---- */
+
+.tramites {
+  border-top: 1px solid var(--linea);
+  background: var(--superficie);
+  padding: 28px 0;
+}
+.tramites__cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+.tramites__cabeza h2 {
+  font-size: 20px;
+}
+/*
+  Cuántos hay marcados, siempre a la vista y al lado del título: un selector
+  que no dice cuánto hay marcado convierte una lista acotada en una lista
+  corta, y no son lo mismo.
+*/
+.tramites__cuantos {
+  font-family: var(--cifras);
+  font-size: 12px;
+  color: var(--tinta-suave);
+  border: 1px solid var(--linea-fuerte);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: var(--lienzo);
+}
+.tramites__nota {
+  font-size: 14px;
+  color: var(--tinta-suave);
+  max-width: 68ch;
+  margin-top: 8px;
+}
+.tramites__rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+.tramites__grupo {
+  border: 1px solid var(--linea);
+  border-radius: var(--r-lg);
+  background: var(--lienzo);
+  margin: 0;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.tramites__grupo legend {
+  font-weight: 600;
+  font-size: 14px;
+  padding: 0;
+}
+.casilla {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 0;
+  color: var(--tinta-suave);
+}
+.casilla input {
+  margin-top: 3px;
+  accent-color: var(--acento);
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+/* ---- Los resultados ---- */
+
+.resultados {
+  border-top: 1px solid var(--linea);
+  padding: 30px 0 44px;
+  scroll-margin-top: 76px;
+}
+/* Sin nada que enseñar no ocupa nada: la sección sigue en el árbol por su
+   región viva, pero no deja un hueco en blanco debajo del campo. */
+.resultados[data-hay='no'] {
+  border-top: 0;
+  padding: 0;
+}
+.resultados__cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 20px;
+  padding-bottom: 18px;
+}
+.resultados__quien {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.resultados__titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 23px;
+}
+.resultados__resumen {
+  font-size: 15px;
+  color: var(--tinta-suave);
+}
+/*
+  La frescura y el botón de volver a comprobar, juntos y en la misma fila:
+  son la misma pregunta —¿esto sigue valiendo?— y separarlos deja la hora como
+  un dato suelto que no lleva a ninguna parte.
+*/
+.frescura {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--tinta-suave);
+}
+.frescura--vieja {
+  color: var(--atencion);
+  font-weight: 600;
+}
+
+.punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--acento);
+  position: relative;
+  flex: none;
+}
+.punto::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--acento);
+  opacity: 0.5;
+  animation: latido 2.4s ease-out infinite;
+}
+@keyframes latido {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/*
+  Las dos alertas de esta pantalla, que conviven y no se parecen: lo que ha
+  impedido contestar y lo que impide buscar. El tono no es decoración: `averia`
+  es que no se pudo preguntar, `aviso` es que se preguntó y lo que vino no es
+  un resultado.
+*/
+.percance {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-radius: var(--r-md);
+  padding: 13px 16px;
+  font-size: 15px;
+  font-weight: 500;
+  border: 1px solid currentColor;
+  max-width: 78ch;
+}
+.percance[data-tono='averia'] {
+  background: var(--alarma-tenue);
+  color: var(--alarma);
+}
+.percance[data-tono='aviso'] {
+  background: var(--atencion-tenue);
+  color: var(--atencion);
+}
+
+.aproximada {
+  font-size: 14px;
+  color: var(--tinta-suave);
+  max-width: 78ch;
+}
+
+/* Lista a la izquierda, mapa a la derecha y pegado al hacer scroll. */
+.reja {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (min-width: 64rem) {
+  .reja {
+    grid-template-columns: minmax(0, 0.9fr) minmax(400px, 1.1fr);
+    gap: 24px;
+  }
+}
+.columna {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mapa {
+  display: none;
+}
+.mapa--abierto {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--lienzo);
+  padding: 16px;
+}
+@media (min-width: 64rem) {
+  .mapa,
+  .mapa--abierto {
+    position: sticky;
+    inset: auto;
+    top: 88px;
+    z-index: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: min(calc(100vh - 120px), 760px);
+    padding: 0;
+  }
+}
+.mapa__lienzo {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--linea);
+  background: var(--superficie);
+}
+/* Donde MapLibre monta su lienzo: tiene que llenar el hueco que se le deja, o
+   pinta un mapa de cero píxeles y no se ve nada sin que falle nada. */
+.mapa__lienzo-de-maplibre {
+  width: 100%;
+  height: 100%;
+}
+.mapa__ficha {
+  position: absolute;
+  inset-inline: 8px;
+  bottom: 8px;
+  max-height: 70%;
+  overflow-y: auto;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--linea);
+  background: var(--lienzo);
+  padding: 16px;
+  box-shadow: var(--sombra-alta);
+}
+/* Solo se esconde en ancho: no se le pone `display` en estrecho para no
+   pisarle el suyo a lo que lo lleve —una pastilla es `inline-flex`—. */
+@media (min-width: 64rem) {
+  .solo-estrecho {
+    display: none;
+  }
+}
+
+/* ---- Los filtros de la lista ---- */
+
+.filtros {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r-lg);
+  background: var(--lienzo);
+  padding: 18px 20px;
+}
+.filtros__bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.filtros__nombre {
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 0;
+}
+.filtros__letra {
+  font-size: 13px;
+  color: var(--tinta-suave);
+  max-width: 62ch;
+}
+.filtros__opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.filtros__opcion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.filtros__opcion input {
+  accent-color: var(--acento);
+}
+.filtros__deslizador {
+  width: 100%;
+  accent-color: var(--acento);
+}
+.filtros__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.filtros__selector {
+  border: 1px solid var(--linea-fuerte);
+  border-radius: var(--r-sm);
+  background: var(--lienzo);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 12px;
+}
+.contador {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  border-top: 1px solid var(--linea);
+  padding-top: 14px;
+}
+.contador__cuantas {
+  font-family: var(--cifras);
+  font-weight: 500;
+}
+
+/* ---- Una oficina ---- */
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tarjeta {
+  padding: 16px 18px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r-lg);
+  background: var(--lienzo);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.tarjeta[aria-current='true'] {
+  border-color: var(--acento);
+  box-shadow: var(--sombra);
+}
+.oficina__nombre {
+  font-size: 17px;
+}
+.oficina__dato {
+  font-size: 14px;
+  color: var(--tinta-suave);
+  margin-top: 3px;
+}
+.oficina__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.oficina__acciones a {
+  color: var(--acento-hondo);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--acento) 40%, transparent);
+}
+
+/* La hora del hueco. Verde cuando la hay; apagada cuando no, porque «sin
+   hueco» es un resultado y no un error. Y nunca solo el color: lo que las
+   separa es la primera palabra de la línea. */
+.hueco {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 14.5px;
+  border: 1px solid var(--acento);
+  color: var(--acento-hondo);
+  background: var(--acento-tenue);
+  /* Redondeo de caja y no de pastilla: el nombre del trámite es una frase del
+     SEPE y se va a tres líneas en un móvil, y una pastilla de tres líneas deja
+     el texto pegado a unos extremos redondos que no lo dejan leer. */
+  border-radius: var(--r-md);
+  padding: 9px 14px;
+  margin-top: 10px;
+}
+.hueco time {
+  font-family: var(--cifras);
+}
+.hueco--sin {
+  border-color: var(--linea-fuerte);
+  background: transparent;
+  color: var(--tinta-suave);
+}
+.hueco__otros {
+  display: block;
+  font-size: 13px;
+  color: var(--tinta-suave);
+  margin-top: 6px;
+}
+
+/* ---- Las secciones de abajo ---- */
+
+.seccion {
+  padding: 80px 0;
+}
+.seccion--otra {
+  background: var(--superficie);
+  border-block: 1px solid var(--linea);
+}
+.cabecera {
+  max-width: 640px;
+  margin-bottom: 42px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cabecera h2 {
+  font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+}
+.cabecera p {
+  color: var(--tinta-suave);
+  font-size: 17px;
+}
+
+.rejilla-tres {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+@media (max-width: 900px) {
+  .rejilla-tres {
+    grid-template-columns: 1fr;
+  }
+}
+.ficha-seccion {
+  background: var(--lienzo);
+  border: 1px solid var(--linea);
+  border-radius: var(--r-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ficha-seccion__cuando {
+  font-family: var(--titular);
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.ficha-seccion h3 {
+  font-size: 19px;
+}
+.ficha-seccion p:last-child {
+  color: var(--tinta-suave);
+  font-size: 15px;
+}
+.ficha-seccion__k {
+  color: var(--acento);
+}
+
+.partida {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 48px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .partida {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+.partida h2 {
+  font-size: clamp(1.8rem, 3.2vw, 2.3rem);
+  margin: 14px 0 18px;
+}
+.partida p {
+  color: var(--tinta-suave);
+  font-size: 16px;
+}
+.partida strong {
+  color: var(--tinta);
+}
+.aparte {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.preguntas {
+  max-width: 780px;
+}
+.preguntas details {
+  border-bottom: 1px solid var(--linea);
+}
+.preguntas summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 18px 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--titular);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.preguntas summary::-webkit-details-marker {
+  display: none;
+}
+.preguntas summary::after {
+  content: '';
+  margin-left: auto;
+  width: 11px;
+  height: 11px;
+  flex: none;
+  border-right: 1.6px solid var(--tinta-suave);
+  border-bottom: 1.6px solid var(--tinta-suave);
+  transform: rotate(45deg) translateY(-3px);
+  transition: transform 0.25s ease;
+}
+.preguntas details[open] summary::after {
+  transform: rotate(-135deg) translateY(-3px);
+}
+.preguntas p {
+  padding: 0 0 20px;
+  color: var(--tinta-suave);
+  max-width: 66ch;
+  font-size: 15.5px;
+}
+
+.pie {
+  border-top: 1px solid var(--linea);
+  padding: 36px 0 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--tinta-suave);
+  max-width: 84ch;
+}
+.pie strong {
+  color: var(--tinta);
+}
+.pie a {
+  color: var(--acento-hondo);
+}
+
+/* Los pasos para añadirla a la pantalla de inicio, donde no hay botón. */
+.pantalla-de-inicio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--linea-fuerte);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+  background: var(--lienzo);
+}
+.pantalla-de-inicio h2 {
+  font-size: 17px;
+}
+.pantalla-de-inicio p {
+  font-size: 15px;
+}
+
+/*
+  Lo que va apareciendo al bajar. Es adorno y por eso empieza **visible**: si el
+  navegador no tiene `IntersectionObserver`, se ve todo y no falta nada.
+*/
+.aparece[data-dentro='no'] {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.aparece[data-dentro='si'] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.7, 0.3, 1),
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@media (max-width: 900px) {
+  .enlaces {
+    display: none;
+  }
+  .seccion {
+    padding: 60px 0;
+  }
+  .hero {
+    padding-top: 40px;
+  }
+}
+@media (max-width: 560px) {
+  .campo__boton {
+    width: 100%;
+  }
+  .barra__derecha .boton--liso {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .aparece[data-dentro='no'] {
+    opacity: 1;
+    transform: none;
+  }
 }

@@ -54,13 +54,16 @@ export function FiltrosDeLaLista({
   const orden = useId()
   const tapando = quienLasTapa(oficinas, filtros, referencia)
 
+  // Llegan ordenadas por distancia, así que la primera es la más cercana.
+  const laMasCercana = oficinas[0]?.km ?? null
+
   return (
     <section
       aria-label="Filtros de la lista"
-      className="flex flex-col gap-5 rounded-lg border border-black/10 p-5 dark:border-white/15"
+      className="filtros"
     >
-      <div className="flex flex-col gap-2">
-        <label className="text-base font-medium" htmlFor={distancia}>
+      <div className="filtros__bloque">
+        <label className="filtros__nombre" htmlFor={distancia}>
           Distancia máxima: {aQueDistancia(filtros.km)}
         </label>
 
@@ -69,7 +72,7 @@ export function FiltrosDeLaLista({
           // un lector que diga «cien» donde la pantalla pone «sin límite» está
           // contando otra cosa.
           aria-valuetext={aQueDistancia(filtros.km)}
-          className="w-full"
+          className="filtros__deslizador"
           id={distancia}
           max={KM_MAXIMO}
           min={KM_MINIMO}
@@ -80,13 +83,13 @@ export function FiltrosDeLaLista({
         />
       </div>
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-base font-medium">Primer hueco de la oficina</legend>
+      <fieldset className="filtros__bloque">
+        <legend className="filtros__nombre">Primer hueco de la oficina</legend>
 
         {/* Va antes de los controles y no en letra pequeña debajo: es lo que
             evita entender que aquí se filtra la agenda de la oficina. El
             desglose por horas del SEPE exige el DNI, y esta fase no lo pide. */}
-        <p className="text-sm opacity-70">
+        <p className="filtros__letra">
           Se filtra por la hora del primer hueco de cada oficina. No es su agenda: aquí no se ven todos
           los huecos de una oficina, solo el más temprano.
         </p>
@@ -99,11 +102,11 @@ export function FiltrosDeLaLista({
         />
       </fieldset>
 
-      <fieldset className="flex flex-col gap-2">
+      <fieldset className="filtros__bloque">
         {/* «Cuándo es el primer hueco» y no «cuándo hay hueco»: lo segundo se
             lee como la disponibilidad de la oficina, que es justo lo que esta
             pantalla no sabe y no puede dar a entender que sabe. */}
-        <legend className="text-base font-medium">Cuándo es el primer hueco</legend>
+        <legend className="filtros__nombre">Cuándo es el primer hueco</legend>
 
         <Opciones
           alElegir={(cuando) => alCambiar({ ...filtros, cuando })}
@@ -113,13 +116,13 @@ export function FiltrosDeLaLista({
         />
       </fieldset>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-base font-medium" htmlFor={orden}>
+      <div className="filtros__fila">
+        <label className="filtros__nombre" htmlFor={orden}>
           Ordenar por
         </label>
 
         <select
-          className="rounded-lg border-2 border-black/30 px-3 py-2 text-base dark:border-white/30"
+          className="filtros__selector"
           id={orden}
           onChange={(evento) => alCambiar({ ...filtros, orden: evento.target.value as Orden })}
           value={filtros.orden}
@@ -141,21 +144,33 @@ export function FiltrosDeLaLista({
       */}
       <div
         aria-label="Oficinas que dejan los filtros"
-        className="flex flex-col gap-2 text-base"
+        className="contador"
         role="status"
       >
-        <p className="font-medium">
+        <p className="contador__cuantas">
           {cuantasSeVen} de {oficinas.length} {oficinas.length === 1 ? 'oficina' : 'oficinas'}
         </p>
 
-        {cuantasSeVen === 0 && <p>Ninguna oficina pasa los filtros. {porQueNoQuedaNinguna(tapando)}</p>}
+        {cuantasSeVen === 0 && (
+          <>
+            <p>Ninguna oficina pasa los filtros. {porQueNoQuedaNinguna(tapando)}</p>
+
+            {/* A cuánto está la más cercana, cuando lo que se ha puesto es un
+                corte de distancia. En una zona rural cuya oficina más próxima
+                esté a ciento veinte, una lista vacía sin este dato no dice si
+                hay que ampliar el radio o cambiar de zona. */}
+            {filtros.km !== KM_MAXIMO && laMasCercana !== null && (
+              <p>La más cercana está a {enKilometros(laMasCercana)}.</p>
+            )}
+          </>
+        )}
       </div>
 
       {(tapando.length > 0 || hayFiltros(filtros)) && (
-        <div className="flex flex-wrap gap-3">
+        <div className="filtros__fila">
           {tapando.map((filtro) => (
             <button
-              className="rounded-lg border-2 border-black/30 px-4 py-2 text-base font-medium dark:border-white/30"
+              className="pastilla"
               key={filtro}
               onClick={() => alCambiar(quitando(filtros, filtro))}
               type="button"
@@ -166,7 +181,7 @@ export function FiltrosDeLaLista({
 
           {hayFiltros(filtros) && (
             <button
-              className="rounded-lg border-2 border-black/30 px-4 py-2 text-base font-medium dark:border-white/30"
+              className="pastilla"
               onClick={() => alCambiar(quitandoTodos(filtros))}
               type="button"
             >
@@ -199,9 +214,9 @@ function Opciones<Valor extends string>({
   alElegir: (valor: Valor) => void
 }) {
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-2">
+    <div className="filtros__opciones">
       {opciones.map(({ valor, texto }) => (
-        <label className="flex items-center gap-2 text-base" key={valor}>
+        <label className="filtros__opcion" key={valor}>
           <input
             checked={elegida === valor}
             name={grupo}

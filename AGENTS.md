@@ -25,6 +25,74 @@ acelerar el ritmo de peticiones al SEPE no es de estilo y no se negocia.
 | `npm run fixtures -- <ruta>` | Rehace los fixtures desde las capturas `.har`. |
 | `npm run iconos` | Rehace los iconos de la aplicación, que están guardados. |
 
+## La portada es una portada, y no un formulario con avisos alrededor
+
+Quien llega aquí **no sabe qué es esto**: viene de una búsqueda o de un enlace
+que le ha pasado alguien, y antes de teclear necesita entender en cinco segundos
+que esto no es el SEPE, que aquí no se reserva y qué le va a salir. Por eso el
+hero manda y debajo está todo lo que contesta a «¿y esto de quién es?». Lo que
+hay que saber antes de tocarla:
+
+- **El orden de la página es un argumento, no un gusto.** Primero el campo;
+  después las oficinas; y **justo debajo de la lista, cuándo mirar**, porque
+  quien más lo necesita es quien acaba de mirar y no ha encontrado nada. Lo que
+  se lee con calma —cómo funciona, qué se guarda, las preguntas— va después, y
+  lo legal en el pie. Lo que no puede esperar al pie —que esto no es el SEPE y
+  que aquí no se reserva— está encima del campo: un aviso que hay que buscar no
+  avisa.
+- **Solo `la-pantalla.tsx` necesita navegador.** El campo, los trámites y los
+  resultados miran el mismo `useLaBusqueda()` y por eso viven juntos; todo lo
+  demás es texto que se manda pintado, y así la portada se lee entera antes de
+  que llegue una línea de JavaScript. Las reglas —que la búsqueda es un bucle,
+  que marcar no relanza nada, que los filtros no cuestan una petición— siguen
+  fuera del componente, en `la-busqueda.ts`.
+- **La vista baja sola a los resultados, y solo cuando lo pide una persona.** Se
+  apunta al enviar y se cumple cuando la búsqueda arranca de verdad: con un
+  código postal mal escrito no arranca, y entonces lo que hay que ver es el
+  aviso pegado al campo. Un enlace compartido también busca solo y ese **no**
+  baja, porque quien lo abre no ha pulsado nada y una página que se mueve sola
+  al cargar se lee como un fallo.
+- **El código postal es un campo y no cinco celdas.** La ronda de diseño las
+  probó y no se ascienden: el navegador autorrellena un campo de una vez, un
+  lector de pantalla lo lee una vez y no cinco, y `getByLabel('Código postal')`
+  —el de los tests y el del navegador— apunta a algo que tiene los cinco dígitos
+  dentro. Lo que sí se asciende es el aspecto: grande, en cifras monoespaciadas
+  y con aire entre los dígitos.
+- **El botón no cambia de nombre mientras busca.** Es el nombre por el que se le
+  llama, y renombrarlo a media espera se lo cambia de debajo del dedo a quien lo
+  está buscando con un lector de pantalla. Que se está buscando lo dicen el
+  botón apagado y el punto que late al lado del titular.
+- **El selector de trámites está desplegado y no detrás de un panel.** Así lo
+  marcado se ve sin abrir nada y las casillas quedan a un tabulador del botón de
+  buscar. Por si acaso, el recuento va además arriba: un selector que esconde lo
+  elegido convierte una lista acotada en una lista corta, y no son lo mismo.
+- **Blanca y solo blanca.** No hay tokens oscuros y `globals.css` lo dice con
+  `color-scheme`: lo que hay debajo es una sede pública en blanco, y una versión
+  oscura al lado de la suya se lee como otra web distinta. Por eso tampoco queda
+  ni un `dark:` en los componentes.
+- **Y las fuentes no se descargan**, ni con un `@import` a Google ni con el
+  cargador de Next. Esto se usa de pie en la calle con la conexión que haya, y
+  una portada que espera a un tercero para pintar el titular tarda justo donde
+  no puede.
+
+Los colores, la tipografía, los radios y las sombras son variables de CSS en
+`src/app/globals.css`, y los componentes piden clases con nombre —`.boton`,
+`.panel`, `.hueco`— sin repetir ni un color. Cambiar el verde es cambiar una
+línea.
+
+**Los avisos siguen sin existir y la portada lo sigue diciendo**, sin botón ni
+casilla: quien pulsara uno se iría creyendo que ya no tiene que volver a mirar,
+y esa es justo la persona que se queda sin cita. El texto se cambia en el issue
+de avisos y no aquí.
+
+Y una regla que ya estaba escrita y que la portada casi se salta: **no hay ni un
+identificador de trámite del SEPE escrito a mano en `src/`**. El prototipo de la
+ronda de diseño traía veintitrés copiados a mano porque necesitaba una lista
+antes de tener código postal; funcionaba en Granollers y se habría descubierto
+en Girona seis meses después. Los trámites salen de `POST /api/tramites`, y
+`pruebas/nada-escrito-a-mano.test.ts` lo comprueba leyendo el código, que es la
+única forma de impedir lo que todavía nadie ha escrito.
+
 ## El mapa
 
 Es de **MapLibre GL JS** sobre las teselas de **OpenFreeMap**, sin clave de

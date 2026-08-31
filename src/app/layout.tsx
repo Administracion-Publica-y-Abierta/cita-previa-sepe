@@ -27,8 +27,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   // `lang="es"` no es decorativo: es lo que hace que un lector de pantalla lea
   // esto en castellano, y la web es para cualquier ciudadano.
   return (
-    <html lang="es" className="h-full antialiased">
-      <body className="flex min-h-full flex-col">
+    <html lang="es" className="antialiased">
+      <body>
         {children}
         <ElServiceWorker />
       </body>

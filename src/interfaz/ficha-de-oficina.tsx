@@ -22,27 +22,24 @@ function agenteDeUsuario(): string {
 export function FichaDeOficina({ oficina }: { oficina: OficinaConSuTramite }) {
   return (
     <>
-      <h3 className="text-lg font-semibold">{oficina.nombre}</h3>
+      <h3 className="oficina__nombre">{oficina.nombre}</h3>
 
-      <p className="mt-1 text-base">
-        <Hueco oficina={oficina} />
+      <p className="oficina__dato">{oficina.direccion}</p>
+      <p className="oficina__dato">
+        A {enKilometros(oficina.km)} · Horario de atención: {oficina.horarioAtencion}
       </p>
 
-      <p className="mt-3 text-base">{oficina.direccion}</p>
-      <p className="text-base opacity-80">A {enKilometros(oficina.km)}</p>
-      <p className="text-base opacity-80">Horario de atención: {oficina.horarioAtencion}</p>
+      <Hueco oficina={oficina} />
 
-      <p className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-base">
+      <p className="oficina__acciones">
         {/* Enlaces y no texto suelto: esto se va a mirar de pie en la calle,
             con el móvil, y llamar o ponerse en camino son los dos pasos
             siguientes naturales. */}
-        <a className="underline" href={`tel:${oficina.telefono}`}>
-          {oficina.telefono}
-        </a>
+        <a href={`tel:${oficina.telefono}`}>{oficina.telefono}</a>
 
         {/* Se abre fuera porque quien pulsa esto se va a la aplicación de
             mapas: si se abriera aquí, volver le costaría perder la búsqueda. */}
-        <a className="underline" href={comoLlegar(oficina, agenteDeUsuario())} rel="noreferrer noopener" target="_blank">
+        <a href={comoLlegar(oficina, agenteDeUsuario())} rel="noreferrer noopener" target="_blank">
           Cómo llegar
         </a>
       </p>
@@ -66,15 +63,17 @@ function Hueco({ oficina }: { oficina: OficinaConSuTramite }) {
   if (oficina.primerHueco === null) {
     // No es lo mismo que no existir: esta oficina atiende, pero de este
     // trámite no tiene hora ahora mismo.
-    return <span className="opacity-70">Sin hueco para «{oficina.tramite.nombre}» ahora mismo</span>
+    return (
+      <p className="hueco hueco--sin">Sin hueco para «{oficina.tramite.nombre}» ahora mismo</p>
+    )
   }
 
   return (
     <>
-      <span className="font-medium text-green-800 dark:text-green-300">
+      <p className="hueco">
         Con hueco para «{oficina.tramite.nombre}»:{' '}
         <time dateTime={oficina.primerHueco}>{enFechaYHora(oficina.primerHueco)}</time>
-      </span>
+      </p>
       <OtrosTramites cuantos={oficina.otrosConHueco} />
     </>
   )
@@ -85,14 +84,16 @@ function Hueco({ oficina }: { oficina: OficinaConSuTramite }) {
  *
  * Se enseña la hora más temprana de todas, y decir solo esa dejaría creer que
  * en esta oficina no se atiende nada más. Elegir cuál se mira es el filtro de
- * trámites, que es el issue #10; hasta entonces, al menos se dice que hay más.
+ * trámites; aquí al menos se dice que hay más.
  */
 function OtrosTramites({ cuantos }: { cuantos: number }) {
   if (cuantos === 0) return null
 
   return (
-    <span className="opacity-70">
-      {cuantos === 1 ? ' También tiene hueco para otro trámite.' : ` También tiene hueco para otros ${cuantos} trámites.`}
+    <span className="hueco__otros">
+      {cuantos === 1
+        ? 'También tiene hueco para otro trámite.'
+        : `También tiene hueco para otros ${cuantos} trámites.`}
     </span>
   )
 }

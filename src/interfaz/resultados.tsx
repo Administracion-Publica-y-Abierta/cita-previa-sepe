@@ -87,16 +87,16 @@ export function Resultados({
   }, [laElegida, mapaAbierto])
 
   return (
-    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
+    <div className="reja">
       {/* Con el mapa ocupando la pantalla, la lista está debajo y no se ve:
           `inert` la saca del paso del teclado y del lector de pantalla, para
           que tabular desde el mapa no caiga en una lista invisible. En
           escritorio no se aplica nunca, porque ahí las dos se ven a la vez. */}
-      <div className="flex flex-col gap-4" inert={mapaAbierto && !enEscritorio}>
+      <div className="columna" inert={mapaAbierto && !enEscritorio}>
         {/* Solo en el móvil: en escritorio el mapa ya está a la vista y un
             botón para enseñar lo que se está viendo sobra. */}
         <button
-          className="rounded-lg border-2 border-black/30 px-4 py-3 text-lg font-medium lg:hidden dark:border-white/30"
+          className="pastilla solo-estrecho"
           onClick={abrirElMapa}
           type="button"
         >
@@ -108,21 +108,17 @@ export function Resultados({
 
       <section
         aria-label="Mapa de las oficinas"
-        className={
-          mapaAbierto
-            ? 'fixed inset-0 z-50 flex flex-col gap-3 bg-background p-4 lg:sticky lg:inset-auto lg:top-6 lg:z-auto lg:h-[70vh] lg:p-0'
-            : 'hidden lg:sticky lg:top-6 lg:flex lg:h-[70vh] lg:flex-col lg:gap-3'
-        }
+        className={mapaAbierto ? 'mapa--abierto' : 'mapa'}
       >
         {/* Lo primero que se lee al entrar en la región, y va antes del mapa a
             propósito: quien no puede usarlo se entera de que no se está
             perdiendo nada en vez de pelearse con un lienzo. */}
-        <p className="sr-only">
+        <p className="solo-lectores">
           El mapa es otra forma de mirar el mismo resultado. La lista de oficinas tiene la misma
           información y se recorre con el teclado.
         </p>
 
-        <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-black/10 dark:border-white/15">
+        <div className="mapa__lienzo">
           {hayMapa && (
             <Mapa
               alElegir={setElegida}
@@ -136,9 +132,9 @@ export function Resultados({
           )}
 
           {laElegida && (
-            <div className="absolute inset-x-2 bottom-2 max-h-[70%] overflow-y-auto rounded-lg border border-black/10 bg-background p-4 shadow-lg dark:border-white/15">
+            <div className="mapa__ficha">
               <button
-                className="float-right ml-3 rounded px-2 py-1 text-base underline"
+                className="pastilla"
                 onClick={() => setElegida(null)}
                 type="button"
               >
@@ -151,7 +147,7 @@ export function Resultados({
 
         {mapaAbierto && (
           <button
-            className="rounded-lg border-2 border-black/30 px-4 py-3 text-lg font-medium lg:hidden dark:border-white/30"
+            className="pastilla solo-estrecho"
             onClick={() => setMapaAbierto(false)}
             type="button"
           >
