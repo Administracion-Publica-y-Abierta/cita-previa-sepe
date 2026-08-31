@@ -962,8 +962,14 @@ a {
   .campo__boton {
     width: 100%;
   }
-  .barra__derecha .boton--liso {
-    display: none;
+  /* El enlace a la sede **no** se esconde aquí, aunque apriete: esto se usa
+     desde el móvil, y es lo único de la barra que hace falta cuando ya has
+     encontrado tu hueco. Lo que se aprieta es el texto de al lado. */
+  .marca {
+    font-size: 17px;
+  }
+  .barra__dentro {
+    gap: 10px;
   }
 }
 

@@ -51,6 +51,12 @@ export function FiltroDeTramites({
   // mientras dure la búsqueda, y marcar una casilla no cambia los grupos.
   const grupos = useMemo(() => agrupados(tramites), [tramites])
 
+  // Se cuenta lo marcado **que existe aquí**, y no lo que traiga la dirección:
+  // un enlace compartido puede llegar con identificadores de otra zona —el SEPE
+  // sirve un árbol distinto en cada una— y contarlos daría «20 de 9 marcados»
+  // al lado de una lista vacía.
+  const deEstaZona = tramites.filter((tramite) => elegidos.includes(tramite.id)).length
+
   return (
     <section aria-labelledby={TITULO} className="tramites">
       <div className="ancho">
@@ -58,7 +64,7 @@ export function FiltroDeTramites({
           <h2 id={TITULO}>¿Qué vas a hacer en el SEPE?</h2>
 
           {/* Cuántos hay marcados, siempre y sin tener que abrir nada. */}
-          <span className="tramites__cuantos">{loMarcado(elegidos.length, tramites.length)}</span>
+          <span className="tramites__cuantos">{loMarcado(deEstaZona, tramites.length)}</span>
         </div>
 
         <p className="tramites__nota">

@@ -22,9 +22,11 @@ import { QueGuardamos } from '@/interfaz/que-guardamos'
  * Lo que se lee con calma —cómo funciona, qué se guarda, las preguntas— va
  * después, y lo legal en el pie.
  *
- * Lo único que necesita navegador es `LaPantalla`. Todo lo demás es texto que
- * se manda pintado, que es lo que hace que esta página se pueda leer entera
- * antes de que llegue una sola línea de JavaScript.
+ * Lo que necesita navegador es `LaPantalla` —la búsqueda entera— y tres piezas
+ * pequeñas que preguntan por el aparato: `LoQueAparece`, los pasos de la
+ * pantalla de inicio y el registro de la carcasa. Todo el texto de las
+ * secciones se manda pintado, que es lo que hace que esta página se pueda leer
+ * entera antes de que llegue una sola línea de JavaScript.
  */
 export default function Portada() {
   return (

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { FiltroDeTramites } from './filtro-de-tramites'
-import { Hero } from './hero'
+import { AVISO_DEL_CAMPO, Hero } from './hero'
 import { useLaBusqueda } from './la-busqueda'
 import { LoEncontrado } from './lo-encontrado'
 import { NINGUNO } from './lo-que-recuerda-el-navegador'
@@ -59,6 +59,28 @@ export function LaPantalla() {
       seccion.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [buscando, busqueda.aviso])
+
+  /**
+   * Y el aviso del campo manda sobre la bajada.
+   *
+   * El código postal lo da por bueno el navegador y lo puede rechazar el
+   * servidor, que es la autoridad: entonces la pantalla ya ha bajado a unos
+   * resultados que se quedan vacíos, y el aviso —que está pegado al campo,
+   * porque es donde está el arreglo— se queda arriba y fuera de la pantalla.
+   * Quien mira se queda leyendo «Cuándo mirar» sin saber qué ha pasado.
+   *
+   * `block: 'nearest'` es lo que hace que esto no moleste: si el campo ya se
+   * ve —lo normal, porque casi todos los avisos salen mientras se teclea— no
+   * mueve nada.
+   */
+  useEffect(() => {
+    if (busqueda.aviso === null) return
+
+    const elAviso = document.getElementById(AVISO_DEL_CAMPO)
+    if (typeof elAviso?.scrollIntoView === 'function') {
+      elAviso.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [busqueda.aviso])
 
   return (
     <>

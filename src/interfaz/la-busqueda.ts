@@ -102,12 +102,6 @@ export interface LaBusqueda {
   aviso: string | null
   alEscribir: (tecleado: string) => void
   alEnviar: (evento: FormEvent<HTMLFormElement>) => void
-  /**
-   * Lo mismo que `alEnviar` pero diciendo por qué trámites se pregunta. Es lo
-   * que necesita una pantalla que deja elegirlos **antes** de buscar: sin esto,
-   * elegir tres de veintitrés seguiría costando la pasada de los veintitrés.
-   */
-  buscarLaZona: (tramites: number[]) => void
   /** Hay una pasada abierta: el botón se deshabilita y la pantalla lo cuenta. */
   buscando: boolean
   /** Todo lo llegado, incluido lo que ahora mismo no se mira. De aquí sale la cola. */
@@ -116,15 +110,6 @@ export interface LaBusqueda {
   loQueSeMira: LoQueVaLlegando
   elegidos: number[]
   cambiarLoMarcado: (nuevos: number[]) => void
-  /**
-   * Lo mismo, pero **sin salir al SEPE**: cambia lo que se mira y nada más.
-   *
-   * Existe para las pantallas donde elegir trámite y comprobar son dos gestos
-   * distintos. Ahí, marcar uno que no se ha consultado no puede lanzar una
-   * consulta sola: quien está eligiendo todavía está eligiendo, y cada trámite
-   * son 2,5 segundos de freno que nadie ha pedido gastar.
-   */
-  soloMirar: (nuevos: number[]) => void
   filtros: Filtros
   cambiarFiltros: (nuevos: Filtros) => void
   /** Todas las que han llegado de lo marcado, **sin filtrar**. */
@@ -394,6 +379,10 @@ export function useLaBusqueda(): LaBusqueda {
   /**
    * Buscar la zona del campo, con los trámites que se digan.
    *
+   * No se expone: la pantalla busca enviando el formulario, y ninguna otra cosa
+   * arranca una búsqueda por su cuenta. Los trámites se pasan igualmente porque
+   * es lo que hace explícita la regla de abajo.
+   *
    * Los trámites se pasan y no se heredan: los de la zona anterior no son
    * estos, y arrastrar sus identificadores dejaría una búsqueda nueva filtrada
    * por algo que no existe aquí. Quien tenga unos válidos —porque acaba de
@@ -461,19 +450,6 @@ export function useLaBusqueda(): LaBusqueda {
     void seguir(zona.current, hayQuePedir, ultimaBusqueda.current)
   }
 
-  /**
-   * Cambiar lo marcado sin preguntarle nada al SEPE.
-   *
-   * Es el filtro y solo el filtro: `soloLoElegido` estrecha la vista y lo
-   * desmarcado sigue entero en `estado`, así que volver a marcarlo no cuesta
-   * nada. Lo que se marque y no se haya consultado no aparece hasta que alguien
-   * pulse el botón, que es exactamente lo que se quiere: la consulta la pide
-   * una persona, no una casilla.
-   */
-  function soloMirar(nuevos: number[]): void {
-    setMarcado(nuevos)
-    if (zona.current) ponerEnLaDireccion(zona.current, nuevos, filtros)
-  }
 
   /**
    * Lo mismo, visto solo por lo marcado. Es lo que se enseña: el filtro mira y
@@ -537,13 +513,11 @@ export function useLaBusqueda(): LaBusqueda {
     aviso,
     alEscribir,
     alEnviar,
-    buscarLaZona,
     buscando: estado.fase === 'buscando',
     estado,
     loQueSeMira,
     elegidos,
     cambiarLoMarcado,
-    soloMirar,
     filtros,
     cambiarFiltros,
     oficinas,

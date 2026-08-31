@@ -23,8 +23,15 @@ import { SEDE } from './enlaces'
  * aspecto —grande, en cifras monoespaciadas y con aire entre los dígitos—.
  */
 
-/** Los identificadores de los textos atados al campo. Fijos, para poder citarlos. */
-const AVISO = 'aviso-del-codigo-postal'
+/**
+ * Los identificadores de los textos atados al campo. Fijos, para poder citarlos.
+ *
+ * El del aviso se exporta porque hay que poder traerlo a la vista: la pantalla
+ * baja a los resultados al buscar, y un aviso que aparece después se quedaría
+ * arriba y fuera de la pantalla.
+ */
+export const AVISO_DEL_CAMPO = 'aviso-del-codigo-postal'
+const AVISO = AVISO_DEL_CAMPO
 const AYUDA = 'ayuda-del-codigo-postal'
 
 export function Hero({

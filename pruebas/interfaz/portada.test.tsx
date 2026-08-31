@@ -2,7 +2,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { UserEvent } from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Portada from '@/app/page'
-import { BOTON, buscar, campoDelCodigoPostal, listaDeOficinas, montarPortada } from './la-portada'
+import {
+  BOTON,
+  buscar,
+  campoDelCodigoPostal,
+  elResumen,
+  listaDeOficinas,
+  montarPortada,
+} from './la-portada'
 import {
   apiQueContesta,
   apiQueVaContando,
@@ -55,6 +62,20 @@ afterEach(() => {
   Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
 })
 
+/**
+ * Si se ha bajado **a los resultados**, que no es lo mismo que haber bajado.
+ *
+ * Se mira a qué elemento se le ha pedido y no cuántas veces: el aviso del campo
+ * también se trae a la vista, y contar llamadas confundiría las dos cosas, que
+ * son justo las dos que hay que poder distinguir.
+ */
+function haBajadoALosResultados(bajar: ReturnType<typeof vi.fn>): boolean {
+  const losResultados = elResumen()
+  return bajar.mock.instances.some(
+    (donde: unknown) => donde instanceof Element && donde.contains(losResultados),
+  )
+}
+
 describe('al buscar, la vista baja a los resultados', () => {
   it('baja cuando lo ha pedido una persona pulsando el botón', async () => {
     const bajar = apuntarLoQueBaja()
@@ -67,7 +88,7 @@ describe('al buscar, la vista baja a los resultados', () => {
     // La pasada dura casi un minuto y lo que hay que ver es cómo se va
     // llenando: quien se queda mirando el campo mientras la lista crece fuera
     // de la pantalla cree que no ha pasado nada.
-    expect(bajar).toHaveBeenCalled()
+    expect(haBajadoALosResultados(bajar)).toBe(true)
   })
 
   it('no baja con un código postal mal escrito, que es cuando hay que mirar el campo', async () => {
@@ -80,7 +101,7 @@ describe('al buscar, la vista baja a los resultados', () => {
     await screen.findByRole('alert')
     // Lo que hay que ver es el aviso pegado al campo, y bajar a unos resultados
     // que no existen lo dejaría fuera de la pantalla.
-    expect(bajar).not.toHaveBeenCalled()
+    expect(haBajadoALosResultados(bajar)).toBe(false)
   })
 
   it('no baja al abrir un enlace compartido: quien lo abre no ha pulsado nada', async () => {
@@ -92,7 +113,7 @@ describe('al buscar, la vista baja a los resultados', () => {
     await listaDeOficinas()
 
     // Una página que se mueve sola al cargar se lee como un fallo.
-    expect(bajar).not.toHaveBeenCalled()
+    expect(haBajadoALosResultados(bajar)).toBe(false)
   })
 
   it('un envío que no arranca nada no deja la bajada apuntada para la siguiente búsqueda', async () => {
@@ -102,7 +123,8 @@ describe('al buscar, la vista baja a los resultados', () => {
 
     await buscar(persona, '08402')
     await listaDeOficinas()
-    expect(bajar).toHaveBeenCalledTimes(1)
+    expect(haBajadoALosResultados(bajar)).toBe(true)
+    bajar.mockClear()
 
     // Se teclea un código postal a medias y se envía: no arranca nada.
     await persona.clear(campoDelCodigoPostal())
@@ -114,8 +136,31 @@ describe('al buscar, la vista baja a los resultados', () => {
     // página no puede dar un salto que nadie ha pedido.
     await persona.click(screen.getByRole('button', { name: /volver a comprobar/i }))
 
-    await waitFor(() => expect(screen.getByRole('button', { name: BOTON }).hasAttribute('disabled')).toBe(false))
-    expect(bajar).toHaveBeenCalledTimes(1)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: BOTON }).hasAttribute('disabled')).toBe(false),
+    )
+    expect(haBajadoALosResultados(bajar)).toBe(false)
+  })
+})
+
+describe('el aviso del campo manda sobre la bajada', () => {
+  it('un código postal que rechaza el servidor trae el aviso a la vista', async () => {
+    const bajar = apuntarLoQueBaja()
+    const persona = montarPortada()
+    // El navegador lo da por bueno —01 es una provincia— y lo tumba el
+    // servidor, que es la autoridad. Para entonces la pantalla ya ha bajado.
+    apiQueContesta({
+      estado: 400,
+      cuerpo: { error: 'codigo-postal-invalido', mensaje: 'No vale.' },
+    })
+
+    await buscar(persona, '01999')
+    const aviso = await screen.findByRole('alert')
+
+    // Sin esto, quien mira se queda leyendo «Cuándo mirar» con el aviso
+    // —que está pegado al campo, porque es donde está el arreglo— fuera de la
+    // pantalla y sin saber qué ha pasado.
+    expect(bajar.mock.instances.at(-1)).toBe(aviso)
   })
 })
 

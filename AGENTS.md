@@ -40,10 +40,12 @@ hay que saber antes de tocarla:
   lo legal en el pie. Lo que no puede esperar al pie —que esto no es el SEPE y
   que aquí no se reserva— está encima del campo: un aviso que hay que buscar no
   avisa.
-- **Solo `la-pantalla.tsx` necesita navegador.** El campo, los trámites y los
-  resultados miran el mismo `useLaBusqueda()` y por eso viven juntos; todo lo
-  demás es texto que se manda pintado, y así la portada se lee entera antes de
-  que llegue una línea de JavaScript. Las reglas —que la búsqueda es un bucle,
+- **La búsqueda entera vive en `la-pantalla.tsx`.** El campo, los trámites y los
+  resultados miran el mismo `useLaBusqueda()` y por eso viven juntos. Lo demás
+  que necesita navegador son tres piezas que preguntan por el aparato —lo que
+  aparece al bajar, los pasos de la pantalla de inicio y el registro de la
+  carcasa—; todo el texto de las secciones se manda pintado, y así la portada se
+  lee entera antes de que llegue una línea de JavaScript. Las reglas —que la búsqueda es un bucle,
   que marcar no relanza nada, que los filtros no cuestan una petición— siguen
   fuera del componente, en `la-busqueda.ts`.
 - **La vista baja sola a los resultados, y solo cuando lo pide una persona.** Se

@@ -35,18 +35,33 @@ function loQueSeDespliega(): string[] {
   return ficherosDe(SRC).filter((fichero) => !/\.test\.tsx?$/.test(fichero))
 }
 
+/**
+ * Las claves que **no** identifican un trámite y por eso pueden llevar un
+ * número escrito.
+ *
+ * Es una lista corta y a propósito: la comprobación es ancha —cualquier clave
+ * que empiece por `id`— porque lo que hay que cazar es lo que todavía nadie ha
+ * escrito, y una lista de claves prohibidas se queda corta el día que alguien
+ * invente una. Cuando aparezca un caso legítimo nuevo, lo que se hace es
+ * añadirlo aquí con su razón, no ensanchar el agujero.
+ *
+ * - `idNivel`: en el árbol del SEPE es en qué nivel se está preguntando —1, 2,
+ *   3—, no qué trámite. `0` es «ninguno», al pedir la raíz.
+ * - `idTipoAtencionTR`: un modo de atención del protocolo de su mapa.
+ */
+const DEL_PROTOCOLO = ['idNivel', 'idTipoAtencionTR']
+
+/** Una clave de identificador con un número puesto a mano detrás. */
+function escritoAMano(codigo: string): boolean {
+  return [...codigo.matchAll(/\b(id\w*):\s*(\d+)/g)].some(
+    ([, clave]) => !DEL_PROTOCOLO.includes(clave!),
+  )
+}
+
 describe('los trámites los dice el SEPE, no nosotros', () => {
   it('no hay ni un identificador numérico escrito en el código que se despliega', () => {
-    // Cualquier clave que sea un identificador —`id`, `idTramite`,
-    // `idGrupoServicio`, `idsNiveles`— con un número puesto a mano detrás. Los
-    // que la aplicación usa de verdad llegan de la red y son variables.
-    //
-    // El cero se deja pasar y no es un agujero: en el protocolo del SEPE quiere
-    // decir «ninguno» —`idNivel: 0` al pedir la raíz del árbol— y no identifica
-    // a ningún trámite. Prohibirlo obligaría a escribirlo con un rodeo, que es
-    // peor que tenerlo a la vista.
     const culpables = loQueSeDespliega().filter((fichero) =>
-      /\bid\w*:\s*[1-9]/.test(readFileSync(fichero, 'utf8')),
+      escritoAMano(readFileSync(fichero, 'utf8')),
     )
 
     expect(culpables).toEqual([])
