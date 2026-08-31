@@ -39,7 +39,17 @@ export function LaPantalla() {
   const pedidoAMano = useRef(false)
 
   useEffect(() => {
-    if (!buscando || !pedidoAMano.current) return
+    if (!buscando) {
+      // Un envío que no llega a arrancar ninguna búsqueda —el código postal no
+      // vale— no puede dejar la intención de bajar apuntada para el siguiente
+      // arranque, que puede no ser un envío: marcar un trámite que no se ha
+      // consultado también sale al SEPE, y entonces la página daría un salto
+      // que no ha pedido nadie.
+      if (busqueda.aviso !== null) pedidoAMano.current = false
+      return
+    }
+
+    if (!pedidoAMano.current) return
     pedidoAMano.current = false
 
     // Se comprueba antes de llamar: bajar es un adorno, y un navegador que no
@@ -48,7 +58,7 @@ export function LaPantalla() {
     if (typeof seccion?.scrollIntoView === 'function') {
       seccion.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
-  }, [buscando])
+  }, [buscando, busqueda.aviso])
 
   return (
     <>

@@ -94,6 +94,29 @@ describe('al buscar, la vista baja a los resultados', () => {
     // Una página que se mueve sola al cargar se lee como un fallo.
     expect(bajar).not.toHaveBeenCalled()
   })
+
+  it('un envío que no arranca nada no deja la bajada apuntada para la siguiente búsqueda', async () => {
+    const bajar = apuntarLoQueBaja()
+    const persona = montarPortada()
+    apiQueContesta(pasadaDeUnTramite())
+
+    await buscar(persona, '08402')
+    await listaDeOficinas()
+    expect(bajar).toHaveBeenCalledTimes(1)
+
+    // Se teclea un código postal a medias y se envía: no arranca nada.
+    await persona.clear(campoDelCodigoPostal())
+    await persona.type(campoDelCodigoPostal(), '084')
+    await persona.click(screen.getByRole('button', { name: BOTON }))
+    await screen.findByRole('alert')
+
+    // La siguiente búsqueda no la ha pedido el botón de buscar, así que la
+    // página no puede dar un salto que nadie ha pedido.
+    await persona.click(screen.getByRole('button', { name: /volver a comprobar/i }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: BOTON }).hasAttribute('disabled')).toBe(false))
+    expect(bajar).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('ordenar la lista', () => {
