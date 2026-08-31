@@ -9,30 +9,49 @@
  * motivo equivocado. Gastar aquí unas pocas peticiones evita desplegar una
  * sonda que habría contestado que sí a cualquier cosa.
  *
- *   node experimentos/ip-y-sesion/desde-aqui.mjs
+ *   node experimentos/ip-y-sesion/desde-aqui.mjs [intentos por caso]
  *
- * Lo que se compara no son tres respuestas sino **tres tasas**: está medido en
- * este repositorio que el mismo trámite contesta vacío y con 46 oficinas con
- * treinta segundos de diferencia, así que un caso que falle una vez no dice
- * nada. Cada caso se intenta varias veces y se cuenta cuántas contestaron.
+ * Lo que se compara no son tres respuestas sino **tres tasas**, y no a ojo:
+ * está medido en este repositorio que el mismo trámite contesta vacío y con 46
+ * oficinas con treinta segundos de diferencia, así que a la tasa a la que el
+ * SEPE contesta —unas 3 de cada 8— un «el control contestó y el otro no» sale
+ * por casualidad demasiado a menudo. La conclusión la firma Fisher, no el ojo.
  */
 
+import { fisherUnaCola, LISTON } from './estadistica.mjs'
 import { abrirSesion, esperar, ipDeSalida, PAUSA_MS, usarSesion } from './sonda.mjs'
 
 /** Un JSESSIONID con la forma que tienen los del SEPE, pero que nadie ha repartido. */
 const INVENTADA = 'JSESSIONID=0000000000000000000000000000000A.sede-cita-previa-1'
 
-const INTENTOS_POR_CASO = 8
+const INTENTOS_POR_CASO = Number(process.argv[2]) || 8
 
 console.log('Experimento: ¿el SEPE ata la sesión a la IP? — mitad local')
-console.log(`${new Date().toISOString()} · IP de salida: ${await ipDeSalida()}\n`)
+console.log(`${new Date().toISOString()} · IP de salida: ${(await ipDeSalida()) ?? 'desconocida'}`)
+console.log(`${INTENTOS_POR_CASO} intentos por caso\n`)
+
+/**
+ * Abre sesión y devuelve la cookie, o revienta.
+ *
+ * Sin esto, una portada que contestara sin repartir cookie —un 5xx, una
+ * pantalla del cortafuegos— convertiría el control en una copia exacta del
+ * caso «sin ninguna cookie», y el guion seguiría imprimiendo conclusiones
+ * sobre nada.
+ */
+async function cookieNueva() {
+  const { estado, jsessionid } = await abrirSesion()
+  if (!jsessionid) {
+    throw new Error(`la portada contestó ${estado} sin repartir JSESSIONID: no hay control que valga`)
+  }
+  return jsessionid
+}
 
 const casos = [
   {
     nombre: 'cookie recién repartida',
     // Se reabre la sesión en cada intento, que es lo que hace
     // `src/sepe/cliente.ts` cuando una respuesta no trae lo que debía.
-    galleta: async () => (await abrirSesion()).jsessionid,
+    galleta: cookieNueva,
     porque: 'control: si esto no contesta nunca, la sonda no se puede leer',
   },
   {
@@ -73,20 +92,38 @@ for (const caso of casos) {
   }
 
   tasas.push({ ...caso, contestadas })
-  console.log(`${caso.nombre.padEnd(26)} ${contestadas}/${INTENTOS_POR_CASO} contestaron  · ${caso.porque}`)
+  console.log(
+    `${caso.nombre.padEnd(31)} ${contestadas}/${INTENTOS_POR_CASO} contestaron  · ${caso.porque}`,
+  )
 }
 
 console.log()
 
 const [control, ...resto] = tasas
+const sinCookieBuena = resto.reduce((suma, caso) => suma + caso.contestadas, 0)
+const totalSinCookieBuena = resto.length * INTENTOS_POR_CASO
 
 if (control.contestadas === 0) {
   console.log('El control no ha contestado ni una vez: el SEPE no está para medir ahora.')
   console.log('No se concluye nada. Repetir más tarde.')
-} else if (resto.every((caso) => caso.contestadas > 0)) {
-  console.log('Contesta igual con cookie buena, sin cookie y con una inventada:')
-  console.log('este endpoint NO mira la sesión, así que no sirve para medir si la sesión se ata a la IP.')
 } else {
-  console.log('El control contesta y alguno de los otros no: el endpoint sí mira la sesión.')
-  console.log('Entonces la mitad de las dos IPs (dos-invocaciones.mjs) sí mide algo.')
+  const p = fisherUnaCola(
+    control.contestadas,
+    INTENTOS_POR_CASO,
+    sinCookieBuena,
+    totalSinCookieBuena,
+  )
+
+  console.log(
+    `control ${control.contestadas}/${INTENTOS_POR_CASO} · ` +
+      `sin cookie buena ${sinCookieBuena}/${totalSinCookieBuena} · Fisher p = ${p.toFixed(4)}`,
+  )
+
+  if (p < LISTON) {
+    console.log('\nEl control contesta bastante más que el resto: el endpoint SÍ mira la sesión.')
+    console.log('Entonces la mitad de las dos IPs (dos-invocaciones.mjs) sí mide algo.')
+  } else {
+    console.log(`\nLa diferencia no llega al listón (p < ${LISTON}): no se concluye nada.`)
+    console.log('O el endpoint no mira la sesión, o hacen falta más intentos. Repetir con más.')
+  }
 }

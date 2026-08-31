@@ -54,6 +54,19 @@ function cuerpoDe(peticion) {
   }
 }
 
+/**
+ * El techo de la invocación, dicho a mano.
+ *
+ * El paso `ambos` encadena portada, mapa y dos consultas de IP, y con el techo
+ * de fábrica de Vercel —10 s en el plan gratuito— lo normal sería que la
+ * plataforma lo cortara. El conductor leería ese corte como «el control no
+ * contestó», o sea como intermitencia del SEPE, y acabaría diciendo «no está
+ * para medir ahora» de algo que no tiene nada que ver con el SEPE. Sesenta es
+ * lo máximo que da el plan gratuito, y las esperas de `sonda.mjs` están
+ * ajustadas para caber dentro con margen.
+ */
+export const config = { maxDuration: 60 }
+
 function responder(respuesta, estado, cuerpo) {
   // Sin caché de ningún tipo: dos invocaciones que devolvieran la misma
   // respuesta guardada serían exactamente el resultado falso que se teme.

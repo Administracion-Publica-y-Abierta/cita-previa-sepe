@@ -226,7 +226,9 @@ seguiría funcionando aunque la respuesta a la pregunta grande fuera la mala.
 donde preguntar. Con la cookie recién repartida contestó 5 de 13 veces; sin
 cookie, con una inventada, y con la portada visitada pero la cookie tirada, 0
 de 34 (Fisher, p ≈ 0,0008). Ese cuarto caso está para separar «vale la cookie»
-de «vale haber pasado por la portada»: es la cookie.
+de «vale haber pasado por la portada»: es la cookie. Los totales salen de dos
+pasadas, una de 5 intentos por caso y otra de 8; están desglosadas en el
+`README.md` del experimento para que se puedan repetir.
 
 Tres cosas medidas de paso que cambian cómo hay que leer cualquier medición
 futura contra el SEPE:

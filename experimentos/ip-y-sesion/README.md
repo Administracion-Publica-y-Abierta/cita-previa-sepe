@@ -55,6 +55,17 @@ experimento:
   es casualidad (Fisher, p ≈ 0,0008), y el cuarto caso deja claro que lo que
   vale es **la cookie** y no haber pasado por la portada.
 
+  Esos totales salen de **dos pasadas**, y conviene decirlo para que quien
+  quiera repetirlas no se vuelva loco cuadrando los números: una con 5 intentos
+  y tres casos (control 2/5, los otros dos 0/5 cada uno) y otra con 8 intentos
+  y los cuatro casos (control 3/8, los otros tres 0/8 cada uno). De ahí 2+3
+  sobre 5+8, y 0 sobre 10+24. El número de intentos es el primer argumento del
+  guion, así que cualquiera de las dos se vuelve a lanzar tal cual:
+
+  ```sh
+  node experimentos/ip-y-sesion/desde-aqui.mjs 8
+  ```
+
 - **`cargaComboNivelesTramitesCPEntidad` NO mira la sesión.** Contestó lo mismo
   —8 trámites— con la cookie buena, sin ninguna cookie y con una inventada. El
   catálogo es apátrida, así que **la fase 1 no está expuesta a esta pregunta**:
