@@ -1,91 +1,46 @@
-import { AnadirALaPantallaDeInicio } from '@/interfaz/anadir-a-la-pantalla-de-inicio'
-import { Hero } from '@/interfaz/hero'
+import { ComoFunciona } from '@/interfaz/como-funciona'
+import { CuandoMirar } from '@/interfaz/cuando-mirar'
+import { ElPie } from '@/interfaz/el-pie'
+import { LaBarra } from '@/interfaz/la-barra'
+import { LaPantalla } from '@/interfaz/la-pantalla'
+import { LoQueAparece } from '@/interfaz/lo-que-aparece'
+import { Preguntas } from '@/interfaz/preguntas'
+import { QueGuardamos } from '@/interfaz/que-guardamos'
 
 /**
  * La primera pantalla.
  *
- * Lo que rodea al formulario no es relleno legal: es lo que hace que la web
- * sea honesta. Quien llega buscando cita del SEPE tiene que entender en cinco
- * segundos que **esto no es el SEPE**, que aquí **todavía no se reserva** y
- * dónde se reserva de verdad. Confundirse en eso le cuesta a alguien la cita.
+ * Es una portada de arriba abajo porque quien llega **no sabe qué es esto**:
+ * llega de una búsqueda o de un enlace que le ha pasado alguien, y antes de
+ * teclear necesita entender en cinco segundos que esto no es el SEPE, que aquí
+ * no se reserva y qué le va a salir. El hero manda, y debajo está todo lo que
+ * responde a «¿y esto de quién es?».
  *
- * Está arriba y no en el pie por lo mismo: un aviso que hay que buscar no
- * avisa. Lo que se puede leer después —el código fuente, qué se guarda, de
- * dónde salen los datos— sí baja al pie.
+ * El orden no es decorativo. Primero el campo; después las oficinas, con la
+ * vista bajando sola hasta ellas al pulsar; y **justo debajo, cuándo mirar**,
+ * porque quien más lo necesita es quien acaba de mirar y no ha encontrado nada.
+ * Lo que se lee con calma —cómo funciona, qué se guarda, las preguntas— va
+ * después, y lo legal en el pie.
+ *
+ * Lo único que necesita navegador es `LaPantalla`. Todo lo demás es texto que
+ * se manda pintado, que es lo que hace que esta página se pueda leer entera
+ * antes de que llegue una sola línea de JavaScript.
  */
-
-const SEDE = 'https://sede.sepe.gob.es/citaprevia'
-const CODIGO = 'https://github.com/Administracion-Publica-y-Abierta/cita-previa-sepe'
-
 export default function Portada() {
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-12 sm:py-20">
-      <header className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-        <p className="text-base font-medium uppercase tracking-wide opacity-70">
-          Esto no es el SEPE. Proyecto independiente.
-        </p>
+    <>
+      <LaBarra />
 
-        <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-          Mira si hay cita del SEPE cerca de ti
-        </h1>
+      <main id="arriba">
+        <LaPantalla />
+        <CuandoMirar />
+        <ComoFunciona />
+        <QueGuardamos />
+        <Preguntas />
+      </main>
 
-        <p className="text-xl">
-          Escribe tu código postal y verás qué oficinas tienen hueco, a qué distancia están y a qué hora
-          atienden. Sin cuenta, sin elegir trámite y sin dar el DNI.
-        </p>
-
-        <p className="text-lg">
-          Aquí todavía no se reserva la cita: cuando encuentres tu hueco, la cita se pide en la{' '}
-          <a className="underline" href={SEDE} rel="noreferrer noopener" target="_blank">
-            sede electrónica del SEPE
-          </a>
-          .
-        </p>
-      </header>
-
-      <Hero />
-
-      {/* Debajo de la búsqueda y no encima: quien llega viene a mirar si hay
-          cita, y lo primero que tiene que ver es el campo. Esto se lee después,
-          que es cuando tiene sentido plantearse tenerlo a mano. */}
-      <aside className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-        <AnadirALaPantallaDeInicio />
-
-        {/*
-          Los avisos son la razón por la que alguien tendría esto en la pantalla
-          de inicio, y hoy no existen. Se dice tal cual: ni un botón ni una
-          casilla que dé a entender que se pueden activar, porque quien la
-          pulsara se iría creyendo que ya no tiene que volver a mirar, y esa es
-          justo la persona que se queda sin cita.
-        */}
-        <p className="text-base opacity-80">
-          Los avisos por notificación cuando aparezca un hueco{' '}
-          <strong>todavía no existen</strong>: están en camino. De momento hay que volver a mirar,
-          y por eso lo de arriba: para que mirar cueste un toque.
-        </p>
-      </aside>
-
-      <footer className="mx-auto flex w-full max-w-3xl flex-col gap-2 border-t border-black/10 pt-6 text-base opacity-80 dark:border-white/15">
-        <p>
-          <strong>Qué guardamos de ti: nada.</strong> No hay cuentas ni base de datos, y el código postal no
-          viaja en ninguna dirección que quede registrada. El último que usas se queda en tu navegador, para
-          proponértelo la próxima vez, y con él la última lista que consultaste, para poder enseñártela
-          cuando te quedes sin cobertura. Las dos cosas están solo en tu móvil y se borran al borrar los
-          datos del sitio.
-        </p>
-        <p>
-          Los horarios y los huecos vienen de la sede pública del SEPE en el momento de la consulta y{' '}
-          <strong>pueden cambiar en cualquier momento</strong>: que aquí aparezca un hueco no lo reserva ni lo
-          aparta.
-        </p>
-        <p>
-          Proyecto independiente, sin relación con el Servicio Público de Empleo Estatal.{' '}
-          <a className="underline" href={CODIGO} rel="noreferrer noopener" target="_blank">
-            Código fuente
-          </a>
-          .
-        </p>
-      </footer>
-    </main>
+      <ElPie />
+      <LoQueAparece />
+    </>
   )
 }

@@ -35,13 +35,11 @@ export function AnadirALaPantallaDeInicio() {
   return (
     <section
       aria-labelledby={TITULO}
-      className="flex flex-col gap-2 rounded-lg border-2 border-black/15 px-4 py-3 dark:border-white/20"
+      className="pantalla-de-inicio"
     >
-      <h2 className="text-lg font-medium" id={TITULO}>
-        Tenlo en la pantalla de inicio
-      </h2>
+      <h2 id={TITULO}>Tenlo en la pantalla de inicio</h2>
 
-      <p className="text-base">
+      <p>
         Pulsa <strong>Compartir</strong> —el cuadrado con la flecha— y luego{' '}
         <strong>Añadir a pantalla de inicio</strong>. Se abre a pantalla completa y, si te quedas sin
         cobertura, te enseña lo último que consultaste en vez de la página de error del navegador.

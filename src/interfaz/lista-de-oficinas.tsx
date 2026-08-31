@@ -33,18 +33,14 @@ export function ListaDeOficinas({
   alSenalar: (id: number | null) => void
 }) {
   return (
-    <ul aria-label="Oficinas del SEPE, de la más cercana a la más lejana" className="flex flex-col gap-4">
+    <ul aria-label="Oficinas del SEPE, de la más cercana a la más lejana" className="lista">
       {oficinas.map((oficina) => (
         <li
           // Señalada con `aria-current` y no solo con un color: es el mismo
           // estado que resalta el punto en el mapa, y decirlo en el árbol de
           // accesibilidad no cuesta nada y lo hace comprobable.
           aria-current={senalada === oficina.id ? true : undefined}
-          className={`rounded-lg border p-5 transition-colors ${
-            senalada === oficina.id
-              ? 'border-black/60 bg-black/[0.03] dark:border-white/60 dark:bg-white/[0.06]'
-              : 'border-black/10 dark:border-white/15'
-          }`}
+          className="tarjeta"
           id={idDeLaTarjeta(oficina.id)}
           key={oficina.id}
           // El foco cuenta igual que el ratón: sin esto, relacionar la lista

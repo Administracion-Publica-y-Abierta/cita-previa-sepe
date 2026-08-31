@@ -218,7 +218,7 @@ export function Mapa({
     mapa.current?.resize()
   }, [pantallaCompleta])
 
-  return <div className="h-full w-full" ref={contenedor} />
+  return <div className="mapa__lienzo-de-maplibre" ref={contenedor} />
 }
 
 /**
